@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [tradingMode, setTradingMode] = useState<TradingMode>('balanced');
   const [tradeDuration, setTradeDuration] = useState<TradeDuration>('5m');
   const [paperTradingMode, setPaperTradingMode] = useState<PaperTradingMode>('paper');
+  const [stakeAmount, setStakeAmount] = useState<number>(10); // Default stake amount
   
   const [aiRecommendation, setAiRecommendation] = useState<AiRecommendation | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -29,17 +30,17 @@ export default function DashboardPage() {
 
   const handleExecuteTrade = (action: 'CALL' | 'PUT') => {
     // Placeholder for trade execution logic
-    console.log(`Executing ${action} trade for ${currentInstrument} with duration ${tradeDuration} in ${tradingMode} mode. Paper trading: ${paperTradingMode}`);
+    console.log(`Executing ${action} trade for ${currentInstrument} with duration ${tradeDuration} and stake ${stakeAmount} in ${tradingMode} mode. Paper trading: ${paperTradingMode}`);
     const outcome = Math.random() > 0.5 ? "won" : "lost";
-    const amount = Math.random() * 100;
+    const potentialProfit = stakeAmount * 0.85; // Assuming 85% profit for a win
     
     if (paperTradingMode === 'paper') {
-      setBalance(prev => outcome === "won" ? prev + amount : prev - amount);
+      setBalance(prev => outcome === "won" ? prev + potentialProfit : prev - stakeAmount);
     }
 
     toast({
       title: `Trade ${paperTradingMode === 'paper' ? 'Simulated' : 'Executed'}`,
-      description: `${action} ${currentInstrument} ${outcome === "won" ? "successful" : "failed"}. Amount: $${amount.toFixed(2)}`,
+      description: `${action} ${currentInstrument} ${outcome === "won" ? "successful" : "failed"}. Stake: $${stakeAmount.toFixed(2)}. ${outcome === "won" ? `Profit: $${potentialProfit.toFixed(2)}` : `Loss: $${stakeAmount.toFixed(2)}`}`,
       variant: outcome === "won" ? "default" : "destructive",
     });
   };
@@ -116,6 +117,8 @@ export default function DashboardPage() {
             onTradeDurationChange={setTradeDuration}
             paperTradingMode={paperTradingMode}
             onPaperTradingModeChange={setPaperTradingMode}
+            stakeAmount={stakeAmount}
+            onStakeAmountChange={setStakeAmount}
             onExecuteTrade={handleExecuteTrade}
             onGetAiRecommendation={handleGetAiRecommendation}
             isAiLoading={isAiLoading}

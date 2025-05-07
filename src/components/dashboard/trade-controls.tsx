@@ -3,11 +3,12 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import type { TradingMode, TradeDuration, PaperTradingMode } from '@/types';
-import { TrendingUp, TrendingDown, Bot, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown, Bot, DollarSign } from 'lucide-react';
 
 interface TradeControlsProps {
   tradingMode: TradingMode;
@@ -16,6 +17,8 @@ interface TradeControlsProps {
   onTradeDurationChange: (duration: TradeDuration) => void;
   paperTradingMode: PaperTradingMode;
   onPaperTradingModeChange: (mode: PaperTradingMode) => void;
+  stakeAmount: number;
+  onStakeAmountChange: (amount: number) => void;
   onExecuteTrade: (action: 'CALL' | 'PUT') => void;
   onGetAiRecommendation: () => void;
   isAiLoading: boolean;
@@ -28,6 +31,8 @@ export function TradeControls({
   onTradeDurationChange,
   paperTradingMode,
   onPaperTradingModeChange,
+  stakeAmount,
+  onStakeAmountChange,
   onExecuteTrade,
   onGetAiRecommendation,
   isAiLoading,
@@ -36,6 +41,14 @@ export function TradeControls({
   const tradeDurations: TradeDuration[] = ['30s', '1m', '5m', '15m', '30m'];
   const paperTradingModes: PaperTradingMode[] = ['paper', 'live'];
 
+  const handleStakeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(event.target.value);
+    if (!isNaN(value) && value >= 0) {
+      onStakeAmountChange(value);
+    } else if (event.target.value === "") {
+      onStakeAmountChange(0); // Or handle as an error/validation
+    }
+  };
 
   return (
     <Card className="shadow-lg">
@@ -73,6 +86,22 @@ export function TradeControls({
           </div>
         </div>
 
+        <div>
+          <Label htmlFor="stake-amount" className="text-sm font-medium text-muted-foreground">Stake Amount ($)</Label>
+          <div className="relative mt-1">
+            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              id="stake-amount"
+              type="number"
+              value={stakeAmount}
+              onChange={handleStakeChange}
+              placeholder="Enter amount"
+              className="w-full pl-8"
+              min="1" // Example: minimum stake of 1
+            />
+          </div>
+        </div>
+
         <div className="flex items-center space-x-2">
           <Switch 
             id="paper-trading-mode" 
@@ -100,6 +129,7 @@ export function TradeControls({
             size="lg" 
             className="bg-green-500 hover:bg-green-600 text-white font-bold text-lg transition-transform hover:scale-105 active:scale-95 h-16"
             onClick={() => onExecuteTrade('CALL')}
+            disabled={stakeAmount <= 0}
           >
             <TrendingUp className="mr-2 h-6 w-6" />
             CALL
@@ -108,6 +138,7 @@ export function TradeControls({
             size="lg" 
             className="bg-red-500 hover:bg-red-600 text-white font-bold text-lg transition-transform hover:scale-105 active:scale-95 h-16"
             onClick={() => onExecuteTrade('PUT')}
+            disabled={stakeAmount <= 0}
           >
             <TrendingDown className="mr-2 h-6 w-6" />
             PUT
