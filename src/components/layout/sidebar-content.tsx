@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Sidebar,
   SidebarHeader,
@@ -14,12 +16,14 @@ import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/icons/logo';
 import { LayoutDashboard, History, Settings, LogOut } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 export function SidebarContentComponent() {
   // TODO: Replace with actual user data and authentication status
   const isAuthenticated = true; 
   const userName = "Demo User";
   const userEmail = "demo@example.com";
+  const pathname = usePathname();
 
   return (
     <Sidebar side="left" variant="sidebar" collapsible="icon">
@@ -34,7 +38,7 @@ export function SidebarContentComponent() {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              isActive={true} // Assuming Dashboard is active on page load
+              isActive={pathname === '/'}
               tooltip={{ children: 'Dashboard', side: 'right' }}
             >
               <Link href="/">
@@ -46,9 +50,10 @@ export function SidebarContentComponent() {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
+              isActive={pathname === '/trade-history'}
               tooltip={{ children: 'Trade History', side: 'right' }}
             >
-              <Link href="#"> {/* Replace # with actual path */}
+              <Link href="/trade-history">
                 <History />
                 <span>Trade History</span>
               </Link>
@@ -57,9 +62,10 @@ export function SidebarContentComponent() {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
+              isActive={pathname === '/settings'}
               tooltip={{ children: 'Settings', side: 'right' }}
             >
-              <Link href="#"> {/* Replace # with actual path */}
+              <Link href="#"> {/* Replace # with actual path for settings when implemented */}
                 <Settings />
                 <span>Settings</span>
               </Link>
