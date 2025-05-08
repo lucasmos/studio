@@ -2,9 +2,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getNewsArticles, type NewsArticle } from '@/services/news';
-import { summarizeNewsSentiment } from '@/ai/flows/summarize-news-sentiment-flow';
-import { AlertTriangle, Info, Newspaper, X } from 'lucide-react';
+import { getNewsSummaryForBanner } from '@/app/actions/news-actions'; // Import the new server action
+import { AlertTriangle, Newspaper, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -15,31 +14,27 @@ export function NewsAlertBanner() {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    async function fetchAndSummarizeNews() {
+    async function fetchNewsData() {
       setIsLoading(true);
       setError(null);
       try {
-        const articles = await getNewsArticles({ query: 'forex finance trading market sentiment', pageSize: 3 });
-        
-        if (articles.length === 0) {
-          setSummary("No current news updates available for market sentiment.");
-          setIsLoading(false);
-          return;
+        const result = await getNewsSummaryForBanner();
+        if (result.error) {
+          setError(result.error);
+          setSummary(null);
+        } else {
+          setSummary(result.summary);
         }
-
-        const articlesForSummary = articles.map(a => ({ title: a.title, description: a.description }));
-        const sentimentResult = await summarizeNewsSentiment({ articles: articlesForSummary });
-        setSummary(sentimentResult.summary);
       } catch (err) {
-        console.error("Failed to fetch or summarize news:", err);
-        setError("Could not load market news alerts at this time.");
+        console.error("Error in fetchNewsData (NewsAlertBanner):", err);
+        setError("An unexpected error occurred while fetching news.");
         setSummary(null);
       } finally {
         setIsLoading(false);
       }
     }
 
-    fetchAndSummarizeNews();
+    fetchNewsData();
   }, []);
 
   if (!isVisible) {
@@ -78,3 +73,4 @@ export function NewsAlertBanner() {
     </div>
   );
 }
+
