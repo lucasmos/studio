@@ -1,8 +1,10 @@
-import WebSocket from 'ws';
+// import WebSocket from 'ws'; // Removed: 'ws' is for Node.js, browser has native WebSocket
 import type { TradingInstrument } from '@/types';
 
 // Deriv WebSocket API endpoint
 const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=36906'; // Using a common test app_id
+const DERIV_API_TOKEN = process.env.NEXT_PUBLIC_DERIV_API_TOKEN || 'YOUR_FALLBACK_DERIV_API_TOKEN';
+
 
 /**
  * Represents a tick data point for a financial instrument.
@@ -47,25 +49,30 @@ const instrumentToDerivSymbol = (instrument: TradingInstrument): string => {
  */
 export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
   const derivSymbol = instrumentToDerivSymbol(instrument);
-  const apiToken = process.env.DERIV_API_TOKEN;
+  
+  // Ensure WebSocket is only used in the browser environment
+  if (typeof window === 'undefined') {
+    console.warn('WebSocket operations (getTicks) are intended for the browser environment.');
+    return Promise.resolve([]); // Or handle server-side appropriately if needed
+  }
 
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(DERIV_WS_URL);
+    const ws = new WebSocket(DERIV_WS_URL); // Uses native browser WebSocket
     let requestSent = false;
 
     const timeout = setTimeout(() => {
-      if (ws.readyState !== ws.CLOSED) {
-        ws.terminate(); // Close the WebSocket connection if it's still open
+      if (ws.readyState !== ws.CLOSED && ws.readyState !== ws.CLOSING) {
+        ws.close(); 
       }
       reject(new Error(`Deriv API request timed out for ${derivSymbol}`));
     }, 15000); // 15 seconds timeout
 
     ws.onopen = () => {
       console.log(`Deriv WebSocket connected for ${derivSymbol}.`);
-      if (apiToken) {
-        ws.send(JSON.stringify({ authorize: apiToken }));
+      if (DERIV_API_TOKEN && DERIV_API_TOKEN !== 'YOUR_FALLBACK_DERIV_API_TOKEN') {
+        ws.send(JSON.stringify({ authorize: DERIV_API_TOKEN }));
       } else {
-        // If no token, directly request ticks
+        console.warn('Deriv API token not found or is fallback. Proceeding without authorization for public streams.');
         sendTicksRequest();
       }
     };
@@ -76,9 +83,9 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
         JSON.stringify({
           ticks_history: derivSymbol,
           end: 'latest',
-          count: 50, // Fetch last 50 ticks for the chart
+          count: 50, 
           style: 'ticks',
-          subscribe: 0, // We want a one-off response, not a subscription
+          subscribe: 0, 
         })
       );
       requestSent = true;
@@ -103,7 +110,7 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
             sendTicksRequest();
           } else {
             console.error('Deriv API Authorization failed.');
-            reject(new Error('Deriv API Authorization failed.'));
+            reject(new Error('Deriv API Authorization failed. Ensure your token is valid and has tick_history permissions.'));
             ws.close();
           }
           return;
@@ -119,7 +126,7 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit',
-                hour12: false // Use 24-hour format for consistency
+                hour12: false 
               }),
             }));
             resolve(ticks);
@@ -129,9 +136,8 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
           }
           ws.close();
         } else if (response.echo_req && response.echo_req.ticks_history && !response.history) {
-            // This can happen if the symbol has no recent ticks or is invalid
-            console.warn(`No history data returned for ${derivSymbol}. Echo_req:`, response.echo_req);
-            resolve([]); // Resolve with empty array if no history
+            console.warn(`No history data returned for ${derivSymbol}. This might be due to an invalid symbol, no recent ticks, or insufficient permissions. Echo_req:`, response.echo_req);
+            resolve([]); 
             ws.close();
         }
 
@@ -142,17 +148,18 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
       }
     };
 
-    ws.onerror = (error) => {
-      console.error(`Deriv WebSocket error for ${derivSymbol}:`, error.message);
-      reject(new Error(`Deriv WebSocket error for ${derivSymbol}: ${error.message}`));
-      ws.close(); // Ensure close on error
+    ws.onerror = (errorEvent) => {
+      // WebSocket errors are often generic; more specific errors come via onmessage
+      console.error(`Deriv WebSocket error for ${derivSymbol}. Check console for details. Event:`, errorEvent);
+      reject(new Error(`Deriv WebSocket error for ${derivSymbol}. See browser console for details.`));
+      if (ws.readyState !== ws.CLOSED && ws.readyState !== ws.CLOSING) {
+        ws.close();
+      }
     };
 
     ws.onclose = (event) => {
       clearTimeout(timeout);
-      console.log(`Deriv WebSocket disconnected for ${derivSymbol}. Code: ${event.code}, Reason: ${event.reason}`);
-      // If the promise hasn't been resolved or rejected yet, it might mean an unexpected closure.
-      // However, normal closure after resolve/reject is fine.
+      console.log(`Deriv WebSocket disconnected for ${derivSymbol}. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`);
     };
   });
 }
