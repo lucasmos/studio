@@ -15,27 +15,29 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/icons/logo';
-import { LayoutDashboard, History, Settings, LogOut, DollarSign, LogIn, CreditCard, BarChartBig } from 'lucide-react';
+import { LayoutDashboard, History, Settings, LogOut, DollarSign, LogIn, CreditCard, BarChartBig, User, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
+import { isFirebaseInitialized } from '@/lib/firebase/firebase'; // Import isFirebaseInitialized
 
 export function SidebarContentComponent() {
-  const { authStatus, userInfo, logout } = useAuth();
+  const { authStatus, userInfo, logout, currentAuthMethod } = useAuth();
   const { isMobile, open, setOpen, openMobile, setOpenMobile } = useSidebar(); 
   const pathname = usePathname();
   const router = useRouter();
 
-  const handleLogout = () => {
-    logout();
-    router.push('/'); 
+  const handleLogout = async () => {
+    await logout(); // AuthContext logout handles Firebase/Deriv mock logout
+    // Navigation will be handled by AuthContext or redirect in login pages
+    // router.push('/auth/login'); // Potentially redundant if AuthContext handles it
   };
 
   const handleMenuClick = () => {
     if (isMobile) {
       setOpenMobile(false);
-    } else if (open) { // If on desktop and sidebar is expanded
-      setOpen(false);  // Collapse to icon mode
+    } else if (open) { 
+      setOpen(false);  
     }
   };
 
@@ -127,6 +129,19 @@ export function SidebarContentComponent() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {!isFirebaseInitialized() && (
+            <SidebarMenuItem>
+               <SidebarMenuButton
+                isActive={false}
+                tooltip={{children: "Firebase Not Configured", side: "right"}}
+                className="text-destructive-foreground bg-destructive hover:bg-destructive/90"
+                disabled
+               >
+                <AlertCircle/>
+                <span>Firebase N/A</span>
+               </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarContent>
       <Separator className="bg-sidebar-border" />
@@ -135,12 +150,17 @@ export function SidebarContentComponent() {
           <div className="flex flex-col gap-3 items-start group-data-[collapsible=icon]:items-center">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
-                <AvatarImage src="https://picsum.photos/100/100" alt={userInfo.name} data-ai-hint="profile avatar" />
+                {userInfo.photoURL ? (
+                  <AvatarImage src={userInfo.photoURL} alt={userInfo.name} data-ai-hint="profile avatar" />
+                ) : (
+                  <AvatarImage src={`https://picsum.photos/seed/${userInfo.id}/100/100`} alt={userInfo.name} data-ai-hint="profile avatar" />
+                )}
                 <AvatarFallback>{userInfo.name.substring(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div className="group-data-[collapsible=icon]:hidden">
                 <p className="text-sm font-medium text-sidebar-foreground">{userInfo.name}</p>
-                <p className="text-xs text-sidebar-foreground/70">{userInfo.email}</p>
+                {userInfo.email && <p className="text-xs text-sidebar-foreground/70">{userInfo.email}</p>}
+                <p className="text-xs text-sidebar-foreground/50 capitalize">{currentAuthMethod === 'deriv' ? 'Deriv Account' : currentAuthMethod ? `${currentAuthMethod} Account` : 'Logged In'}</p>
               </div>
             </div>
             <Button 
@@ -158,16 +178,27 @@ export function SidebarContentComponent() {
             </Button>
           </div>
         ) : (
-          <div className="group-data-[collapsible=icon]:hidden w-full">
+          <div className="group-data-[collapsible=icon]:hidden w-full space-y-2">
             <Button 
               asChild
               variant="outline" 
               className="w-full bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
               onClick={handleMenuClick}
             >
-              <Link href="/auth/deriv">
+              <Link href="/auth/login">
                 <LogIn className="mr-2 h-4 w-4" />
-                Login with Deriv
+                Login
+              </Link>
+            </Button>
+             <Button 
+              asChild
+              variant="outline" 
+              className="w-full bg-sidebar-background text-sidebar-foreground border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              onClick={handleMenuClick}
+            >
+              <Link href="/auth/signup">
+                <User className="mr-2 h-4 w-4" />
+                Sign Up
               </Link>
             </Button>
           </div>
@@ -176,4 +207,3 @@ export function SidebarContentComponent() {
     </Sidebar>
   );
 }
-

@@ -4,7 +4,7 @@ import './globals.css';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Toaster } from "@/components/ui/toaster";
-import { AuthProvider } from '@/contexts/auth-context';
+import { AuthProvider } from '@/contexts/auth-context'; // Keep AuthProvider here for global context
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,8 +29,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
-        <AuthProvider>
+        <AuthProvider> {/* AuthProvider wraps everything */}
           <SidebarProvider defaultOpen={true}>
+            {/* Conditionally render AppLayout or just children based on route */}
+            {/* For simplicity, we'll keep AppLayout always rendered, but auth pages will have their own simpler layout */}
             <AppLayout>
               {children}
             </AppLayout>

@@ -66,15 +66,14 @@ export interface AutomatedTradingStrategyOutput {
 export type AuthMethod = 'email' | 'google' | 'deriv' | 'demo' | null;
 
 export interface UserInfo {
-  id: string;
-  name: string;
-  email?: string; // Email might not be present for all auth methods initially (e.g. demo)
+  id: string; // Firebase UID or Deriv ID
+  name: string; // Firebase displayName or Deriv name
+  email?: string | null; // Firebase email or Deriv email
   authMethod: AuthMethod;
+  photoURL?: string | null; // From Firebase or a placeholder
   // Specific Deriv account details, populated if authMethod is 'deriv'
-  // or if a user links their Deriv account later (future feature)
   derivRealAccountId?: string; 
   derivDemoAccountId?: string;
-  // Balances associated with Deriv accounts - these would ideally be fetched from Deriv
   derivRealBalance?: number;
   derivDemoBalance?: number;
 }
