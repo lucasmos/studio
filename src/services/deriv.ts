@@ -3,7 +3,10 @@ import type { TradingInstrument } from '@/types';
 
 // Deriv WebSocket API endpoint
 const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=36906'; // Using a common test app_id
-const DERIV_API_TOKEN = process.env.NEXT_PUBLIC_DERIV_API_TOKEN || 'YOUR_FALLBACK_DERIV_API_TOKEN';
+
+// Read the token from environment variables. NEXT_PUBLIC_ prefix makes it available to the browser.
+const DERIV_API_TOKEN_FROM_ENV = process.env.NEXT_PUBLIC_DERIV_API_TOKEN;
+const PLACEHOLDER_ENV_TOKEN_MESSAGE = "PLACEHOLDER_ENTER_YOUR_REAL_DERIV_API_TOKEN_HERE";
 
 
 /**
@@ -52,13 +55,14 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
   
   // Ensure WebSocket is only used in the browser environment
   if (typeof window === 'undefined') {
-    console.warn('WebSocket operations (getTicks) are intended for the browser environment.');
-    return Promise.resolve([]); // Or handle server-side appropriately if needed
+    console.warn('WebSocket operations (getTicks) are intended for the browser environment and will not run on the server.');
+    return Promise.resolve([]); 
   }
 
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(DERIV_WS_URL); // Uses native browser WebSocket
+    const ws = new WebSocket(DERIV_WS_URL); 
     let requestSent = false;
+    let authorized = false; // Track authorization status
 
     const timeout = setTimeout(() => {
       if (ws.readyState !== ws.CLOSED && ws.readyState !== ws.CLOSING) {
@@ -69,10 +73,18 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
 
     ws.onopen = () => {
       console.log(`Deriv WebSocket connected for ${derivSymbol}.`);
-      if (DERIV_API_TOKEN && DERIV_API_TOKEN !== 'YOUR_FALLBACK_DERIV_API_TOKEN') {
-        ws.send(JSON.stringify({ authorize: DERIV_API_TOKEN }));
+      if (DERIV_API_TOKEN_FROM_ENV) {
+        if (DERIV_API_TOKEN_FROM_ENV === PLACEHOLDER_ENV_TOKEN_MESSAGE) {
+            console.warn(`Attempting to authorize with a placeholder token: "${PLACEHOLDER_ENV_TOKEN_MESSAGE}". This will likely fail. Please set a valid NEXT_PUBLIC_DERIV_API_TOKEN in your .env file.`);
+        } else {
+            console.log('Attempting to authorize with token from .env.');
+        }
+        ws.send(JSON.stringify({ authorize: DERIV_API_TOKEN_FROM_ENV }));
       } else {
-        console.warn('Deriv API token not found or is fallback. Proceeding without authorization for public streams.');
+        // No token provided in .env
+        console.warn('NEXT_PUBLIC_DERIV_API_TOKEN is not set in the .env file. Attempting to fetch public data. This may fail for protected resources like tick history.');
+        // For some public data, authorization might not be needed, but for ticks_history it often is.
+        // We can proceed to sendTicksRequest, and if auth is required, Deriv will send an error.
         sendTicksRequest();
       }
     };
@@ -95,11 +107,10 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
     ws.onmessage = (event) => {
       try {
         const response = JSON.parse(event.data.toString());
-        // console.log('Deriv API Response:', JSON.stringify(response, null, 2));
-
+        
         if (response.error) {
-          console.error(`Deriv API Error for ${derivSymbol}:`, response.error.message);
-          reject(new Error(`Deriv API Error for ${derivSymbol}: ${response.error.message}`));
+          console.error(`Deriv API Error for ${derivSymbol}:`, response.error.message, response.error.code);
+          reject(new Error(`Deriv API Error for ${derivSymbol}: ${response.error.message} (Code: ${response.error.code})`));
           ws.close();
           return;
         }
@@ -107,9 +118,11 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
         if (response.msg_type === 'authorize') {
           if (response.authorize) {
             console.log('Deriv API Authorized successfully.');
-            sendTicksRequest();
+            authorized = true;
+            sendTicksRequest(); // Send tick request after successful authorization
           } else {
-            console.error('Deriv API Authorization failed.');
+            // This path might not be hit if response.error is already populated for auth failures
+            console.error('Deriv API Authorization failed. Response:', response);
             reject(new Error('Deriv API Authorization failed. Ensure your token is valid and has tick_history permissions.'));
             ws.close();
           }
@@ -136,7 +149,7 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
           }
           ws.close();
         } else if (response.echo_req && response.echo_req.ticks_history && !response.history) {
-            console.warn(`No history data returned for ${derivSymbol}. This might be due to an invalid symbol, no recent ticks, or insufficient permissions. Echo_req:`, response.echo_req);
+            console.warn(`No history data returned for ${derivSymbol}. This might be due to an invalid symbol, no recent ticks, or insufficient permissions if not authorized. Echo_req:`, response.echo_req);
             resolve([]); 
             ws.close();
         }
@@ -149,8 +162,7 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
     };
 
     ws.onerror = (errorEvent) => {
-      // WebSocket errors are often generic; more specific errors come via onmessage
-      console.error(`Deriv WebSocket error for ${derivSymbol}. Check console for details. Event:`, errorEvent);
+      console.error(`Deriv WebSocket error for ${derivSymbol}. Event:`, errorEvent);
       reject(new Error(`Deriv WebSocket error for ${derivSymbol}. See browser console for details.`));
       if (ws.readyState !== ws.CLOSED && ws.readyState !== ws.CLOSING) {
         ws.close();
@@ -160,6 +172,9 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
     ws.onclose = (event) => {
       clearTimeout(timeout);
       console.log(`Deriv WebSocket disconnected for ${derivSymbol}. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`);
+      // If not resolved yet, it might be an unexpected close.
+      // This check is a bit tricky, as resolve/reject might have already been called.
+      // Consider if a specific rejection here is needed or if existing error handling covers it.
     };
   });
 }
@@ -181,12 +196,10 @@ export interface OrderBookDepth {
 /**
  * Asynchronously retrieves the order book depth for a given symbol.
  *
- * @param symbol The symbol for which to retrieve the order book depth.
+ * @param instrument The trading instrument for which to retrieve the order book depth.
  * @returns A promise that resolves to an OrderBookDepth object.
  */
 export async function getOrderBookDepth(instrument: TradingInstrument): Promise<OrderBookDepth> {
-  // TODO: Implement this by calling the Deriv API for order book data.
-  // This would also likely use WebSockets.
   console.warn(`getOrderBookDepth for ${instrument} is not yet implemented with real API.`);
   return {
     asks: [
