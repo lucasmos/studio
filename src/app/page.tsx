@@ -170,7 +170,15 @@ export default function DashboardPage() {
       toast({ title: "AI Auto-Trade Strategy", description: `AI proposes ${strategyResult.tradesToExecute.length} trade(s). ${strategyResult.overallReasoning}`, duration: 7000});
 
       const newTrades: ActiveAutomatedTrade[] = [];
+      let currentAllocatedStake = 0;
       for (const proposal of strategyResult.tradesToExecute) {
+         // Ensure individual trade stake doesn't push total over budget
+        if (currentAllocatedStake + proposal.stake > autoTradeTotalStake) {
+          console.warn(`Skipping trade proposal for ${proposal.instrument} due to exceeding total stake limit.`);
+          continue; 
+        }
+        currentAllocatedStake += proposal.stake;
+
         const currentTicks = instrumentTicksData[proposal.instrument];
         if (!currentTicks || currentTicks.length === 0) {
           console.warn(`No tick data for ${proposal.instrument} to determine entry price. Skipping trade.`);
@@ -279,11 +287,15 @@ export default function DashboardPage() {
                   winningTrades: newStatus === 'won' ? prevProfits.winningTrades + 1 : prevProfits.winningTrades,
                   losingTrades: (newStatus === 'lost_duration' || newStatus === 'lost_stoploss') ? prevProfits.losingTrades + 1 : prevProfits.losingTrades,
                 }));
-                toast({
-                  title: `Auto-Trade Ended: ${currentTrade.instrument}`,
-                  description: `Status: ${newStatus}, P/L: $${pnl.toFixed(2)}`,
-                  variant: pnl > 0 ? "default" : "destructive"
-                });
+                
+                // Defer toast call to avoid updating Toaster while DashboardPage is rendering
+                setTimeout(() => {
+                  toast({
+                    title: `Auto-Trade Ended: ${currentTrade.instrument}`,
+                    description: `Status: ${newStatus}, P/L: $${pnl.toFixed(2)}`,
+                    variant: pnl > 0 ? "default" : "destructive"
+                  });
+                }, 0);
               }
               return { ...currentTrade, status: newStatus, pnl, currentPrice: newCurrentPrice };
             })
