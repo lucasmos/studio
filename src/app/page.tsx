@@ -134,7 +134,7 @@ export default function DashboardPage() {
     setActiveAutomatedTrades([]); 
 
     try {
-      const instrumentsToConsider: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD', 'SOL/USD'];
+      const instrumentsToConsider: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD']; // SOL/USD removed
       const instrumentTicksData: Record<TradingInstrument, PriceTick[]> = {} as Record<TradingInstrument, PriceTick[]>;
       
       for (const inst of instrumentsToConsider) {
@@ -421,3 +421,4 @@ const { v4: importedUuidv4 } = require('uuid');
 if (typeof window !== 'undefined' && !(window as any).uuidv4) {
   (window as any).uuidv4 = importedUuidv4;
 }
+

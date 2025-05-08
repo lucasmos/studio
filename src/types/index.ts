@@ -3,8 +3,8 @@ export type TradingInstrument =
   | 'GBP/USD'
   | 'BTC/USD'
   | 'XAU/USD' // Gold
-  | 'ETH/USD' // Ethereum
-  | 'SOL/USD'; // Solana
+  | 'ETH/USD'; // Ethereum
+  // SOL/USD was removed as 'crySOLUSD' is an invalid symbol on Deriv
 
 export type TradingMode = 'conservative' | 'balanced' | 'aggressive';
 
@@ -64,3 +64,4 @@ export interface AutomatedTradingStrategyOutput {
   tradesToExecute: AutomatedTradeProposal[];
   overallReasoning: string;
 }
+

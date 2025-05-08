@@ -10,19 +10,18 @@ export function getInstrumentDecimalPlaces(instrument: TradingInstrument): numbe
   switch (instrument) {
     case 'BTC/USD':
     case 'ETH/USD':
-    case 'SOL/USD':
+    // case 'SOL/USD': // Removed as symbol is invalid
     case 'XAU/USD':
       return 2;
     case 'EUR/USD':
     case 'GBP/USD':
       return 5; // Deriv typically uses 5 for major FX pairs
     default:
-      // Fallback for any other instruments, though all current ones are covered.
-      // Check if instrument is a string and handle it, or throw error for unexpected type.
-      if (typeof instrument === 'string' && instrument.includes('/')) {
-        // Basic guess for unlisted forex/crypto
-        return instrument.startsWith('frx') ? 5 : 2;
-      }
+      // This should ideally not be reached if TradingInstrument type is exhaustive.
+      // Making sure this function is never called with an invalid instrument (exhaustive check)
+      const exhaustiveCheck: never = instrument; 
+      console.error(`Unhandled instrument in getInstrumentDecimalPlaces: ${exhaustiveCheck}`);
       return 4; // A general fallback
   }
 }
+

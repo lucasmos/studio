@@ -140,7 +140,7 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
 
 
 export function TradingChart({ instrument, onInstrumentChange }: TradingChartProps) {
-  const instruments: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD', 'SOL/USD'];
+  const instruments: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD']; // SOL/USD removed
 
   return (
     <Card className="shadow-lg col-span-1 md:col-span-2">
@@ -150,7 +150,7 @@ export function TradingChart({ instrument, onInstrumentChange }: TradingChartPro
       </CardHeader>
       <CardContent>
         <Tabs value={instrument} onValueChange={(value) => onInstrumentChange(value as TradingInstrument)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 mb-4">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 mb-4"> {/* Adjusted grid-cols */}
             {instruments.map((inst) => (
               <TabsTrigger key={inst} value={inst}>{inst}</TabsTrigger>
             ))}
@@ -165,3 +165,4 @@ export function TradingChart({ instrument, onInstrumentChange }: TradingChartPro
     </Card>
   );
 }
+

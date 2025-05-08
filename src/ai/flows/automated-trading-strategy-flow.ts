@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { TradingInstrument, PriceTick } from '@/types'; // Removed unused imports
+import type { TradingInstrument, PriceTick } from '@/types'; 
 
 // Define Zod schemas based on TypeScript types
 const PriceTickSchema = z.object({
@@ -25,7 +25,7 @@ const TradingInstrumentEnum = z.nativeEnum({
   BTC_USD: 'BTC/USD',
   XAU_USD: 'XAU/USD', // Gold
   ETH_USD: 'ETH/USD', // Ethereum
-  SOL_USD: 'SOL/USD'  // Solana
+  // SOL_USD: 'SOL/USD' // Solana removed as symbol is invalid
 } as const);
 
 const AutomatedTradingStrategyInputSchema = z.object({
@@ -140,3 +140,4 @@ const automatedTradingStrategyFlow = ai.defineFlow(
     return output;
   }
 );
+

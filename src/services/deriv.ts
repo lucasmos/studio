@@ -2,7 +2,7 @@
 import type { TradingInstrument } from '@/types';
 
 // Deriv WebSocket API endpoint
-const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=74597'; // Updated app_id
+const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=74597'; 
 
 // Read the token from environment variables. NEXT_PUBLIC_ prefix makes it available to the browser.
 const DERIV_API_TOKEN = "TXQW98UdRF92bo0";
@@ -41,12 +41,14 @@ const instrumentToDerivSymbol = (instrument: TradingInstrument): string => {
       return 'frxXAUUSD'; // Gold vs USD
     case 'ETH/USD':
       return 'cryETHUSD'; // Ethereum vs USD
-    case 'SOL/USD':
-      return 'crySOLUSD'; // Solana vs USD
+    // SOL/USD case removed as 'crySOLUSD' was reported as an invalid symbol by Deriv API
     default:
-      console.warn(`Unknown instrument: ${instrument}, defaulting to R_100 (Volatility Index 100)`);
-      // This default might not be ideal if R_100 doesn't support ticks_history or requires different params.
-      // Consider throwing an error or having a more suitable default based on app requirements.
+      // This should ideally not be reached if TradingInstrument type is exhaustive
+      // and all UI elements use instruments from this type.
+      // Making sure this function is never called with an invalid instrument (exhaustive check)
+      const exhaustiveCheck: never = instrument; 
+      console.error(`Unknown instrument passed to instrumentToDerivSymbol: ${exhaustiveCheck}`);
+      // Fallback to a commonly available symbol if type safety fails, though this indicates a bug.
       return 'R_100'; 
   }
 };
@@ -215,3 +217,4 @@ export async function getOrderBookDepth(instrument: TradingInstrument): Promise<
     ],
   };
 }
+
