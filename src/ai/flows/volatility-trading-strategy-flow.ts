@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview AI flow for generating an automated trading strategy for Volatility Indices.
@@ -38,8 +39,8 @@ const VolatilityTradingStrategyInputSchema = z.object({
 const VolatilityTradeProposalSchema = z.object({
   instrument: VolatilityInstrumentEnum.describe('The volatility instrument for this trade.'),
   action: z.enum(['CALL', 'PUT']).describe('The trade direction (CALL for price up, PUT for price down).'),
-  stake: z.number().positive().min(0.01).describe('The amount of stake apportioned to this specific trade. Must be a positive value, minimum 0.01.'),
-  durationSeconds: z.number().int().positive().min(1).describe('The duration of the trade in seconds (e.g., 30, 60, 180, 300). Must be a positive integer, minimum 1.'),
+  stake: z.number().min(0.01).describe('The amount of stake apportioned to this specific trade. Must be a positive value, minimum 0.01.'),
+  durationSeconds: z.number().int().min(1).describe('The duration of the trade in seconds (e.g., 30, 60, 180, 300). Must be a positive integer, minimum 1.'),
   reasoning: z.string().describe('Brief reasoning for this specific trade proposal.'),
 });
 
@@ -150,3 +151,4 @@ const volatilityTradingStrategyFlow = ai.defineFlow(
     return output;
   }
 );
+
