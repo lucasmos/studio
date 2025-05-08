@@ -92,7 +92,7 @@ export interface MT5TradeOrder {
   status: MT5TradeStatus;
   openTime: number; // timestamp
   closeTime?: number; // timestamp
-  pnl?: number; // Profit or Loss
+  pnl?: number; // Profit or Loss, can be updated for active trades
   currentPrice?: number; // For UI display of active trades
   maxHoldingPeriodSeconds: number; // Calculated from MT5HoldingPeriod
   aiCommentaryDuringTrade?: string; // AI's initial reasoning for TP/SL
@@ -118,3 +118,4 @@ export interface MT5AccountSummary {
     freeMargin: number;
     marginLevelPercentage: number;
 }
+

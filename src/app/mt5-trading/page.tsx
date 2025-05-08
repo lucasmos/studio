@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Lightbulb, Settings2, Info, AlertTriangle, CheckCircle, XCircle, MinusCircle, Clock } from 'lucide-react';
+import { TrendingUp, TrendingDown, Lightbulb, Settings2, Info, AlertTriangle, CheckCircle, XCircle, MinusCircle, Clock, Briefcase, UserCheck } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const HOLDING_PERIODS: MT5HoldingPeriod[] = ['1H', '4H', '1D', '1W'];
@@ -40,7 +40,7 @@ export default function MT5TradingPage() {
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
 
   const [activeTrades, setActiveTrades] = useState<MT5TradeOrder[]>([]);
-  const [pendingTrades, setPendingTrades] = useState<MT5TradeOrder[]>([]); // For future use (e.g. limit orders)
+  const [pendingTrades, setPendingTrades] = useState<MT5TradeOrder[]>([]);
   const [closedTrades, setClosedTrades] = useState<ClosedMT5Trade[]>([]);
 
   const currentBalance = paperTradingMode === 'paper' ? paperBalance : liveBalance;
@@ -58,14 +58,12 @@ export default function MT5TradingPage() {
         const latestPrice = ticks[ticks.length - 1].price;
         setCurrentPrice(latestPrice);
 
-        // Fetch AI Analysis
         const analysisInput = {
           instrument: instrument,
           currentPrice: latestPrice,
           investmentAmount: parseFloat(investmentAmount) || 100,
           tradingMode: tradingMode,
-          recentTicks: ticks.slice(-20), // last 20 ticks
-          // marketSentimentSummary: "Optional: Could fetch news summary here"
+          recentTicks: ticks.slice(-20),
         };
         const analysisResult = await analyzeMt5Instrument(analysisInput);
         setAiAnalysis(analysisResult);
@@ -92,7 +90,7 @@ export default function MT5TradingPage() {
       case '4H': return 4 * 60 * 60;
       case '1D': return 24 * 60 * 60;
       case '1W': return 7 * 24 * 60 * 60;
-      default: return 4 * 60 * 60; // Default to 4H
+      default: return 4 * 60 * 60;
     }
   };
 
@@ -115,19 +113,17 @@ export default function MT5TradingPage() {
       return;
     }
 
-    // Validate TP/SL based on direction
     if (direction === 'BUY') {
         if (aiAnalysis.suggestedTakeProfit <= currentPrice || aiAnalysis.suggestedStopLoss >= currentPrice) {
             toast({title: "Invalid TP/SL for BUY", description: "For BUY, TP must be above current price and SL must be below.", variant: "destructive"});
             return;
         }
-    } else { // SELL
+    } else {
         if (aiAnalysis.suggestedTakeProfit >= currentPrice || aiAnalysis.suggestedStopLoss <= currentPrice) {
             toast({title: "Invalid TP/SL for SELL", description: "For SELL, TP must be below current price and SL must be above.", variant: "destructive"});
             return;
         }
     }
-
 
     const newTrade: MT5TradeOrder = {
       id: uuidv4(),
@@ -142,14 +138,14 @@ export default function MT5TradingPage() {
       currentPrice: currentPrice,
       maxHoldingPeriodSeconds: holdingPeriodToSeconds(selectedHoldingPeriod),
       aiCommentaryDuringTrade: aiAnalysis.aiCommentary,
+      pnl: 0, // Initial P/L
     };
 
     setActiveTrades(prev => [...prev, newTrade]);
-    setCurrentBalance(prev => prev - investment); // Deduct investment from balance
+    setCurrentBalance(prev => prev - investment); 
     toast({ title: "Trade Placed (Simulated)", description: `${direction} ${selectedInstrument} @ ${currentPrice.toFixed(getInstrumentDecimalPlaces(selectedInstrument))} for $${investment.toFixed(2)}. TP: ${newTrade.takeProfit}, SL: ${newTrade.stopLoss}` });
   };
 
-  // Simulate trade updates and closures
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveTrades(prevActiveTrades => {
@@ -158,74 +154,87 @@ export default function MT5TradingPage() {
 
           let newCurrentPrice = trade.currentPrice ?? trade.entryPrice;
           const decimalPlaces = getInstrumentDecimalPlaces(trade.instrument);
-          const priceChangeFactor = (Math.random() - 0.5) * (decimalPlaces <= 2 ? 0.02 : 0.00020); // Larger volatility for MT5
+          const priceChangeFactor = (Math.random() - 0.5) * (decimalPlaces <= 2 ? 0.02 : 0.00020);
           newCurrentPrice += priceChangeFactor;
           newCurrentPrice = parseFloat(newCurrentPrice.toFixed(decimalPlaces));
 
           let newStatus: MT5TradeStatus = trade.status;
           let closeReason = "";
-          let pnl = 0;
+          let finalPnl = trade.pnl || 0; // PNL at the point of closure
+
+          // Calculate current P/L for active trade
+          let currentPnl: number;
+          if (trade.direction === 'BUY') {
+            currentPnl = (newCurrentPrice - trade.entryPrice) / trade.entryPrice * trade.investment;
+          } else { // SELL
+            currentPnl = (trade.entryPrice - newCurrentPrice) / trade.entryPrice * trade.investment;
+          }
+          currentPnl = parseFloat(currentPnl.toFixed(2));
+          
+          const pnlDifference = currentPnl - (trade.pnl || 0);
+          if (Math.abs(pnlDifference) > 0.001) { // Update balance if P/L changed significantly
+            setCurrentBalance(prevBal => parseFloat((prevBal + pnlDifference).toFixed(2)));
+          }
 
           // Check TP/SL
           if (trade.direction === 'BUY') {
             if (newCurrentPrice >= trade.takeProfit) {
               newStatus = 'CLOSED_TP'; closeReason = 'Take Profit hit';
-              pnl = (trade.takeProfit - trade.entryPrice) * (trade.investment / trade.entryPrice); // Simplified PNL
+              finalPnl = (trade.takeProfit - trade.entryPrice) / trade.entryPrice * trade.investment;
             } else if (newCurrentPrice <= trade.stopLoss) {
               newStatus = 'CLOSED_SL'; closeReason = 'Stop Loss triggered';
-              pnl = (trade.stopLoss - trade.entryPrice) * (trade.investment / trade.entryPrice); // Simplified PNL
+              finalPnl = (trade.stopLoss - trade.entryPrice) / trade.entryPrice * trade.investment;
             }
           } else { // SELL
             if (newCurrentPrice <= trade.takeProfit) {
               newStatus = 'CLOSED_TP'; closeReason = 'Take Profit hit';
-              pnl = (trade.entryPrice - trade.takeProfit) * (trade.investment / trade.entryPrice); // Simplified PNL
+              finalPnl = (trade.entryPrice - trade.takeProfit) / trade.entryPrice * trade.investment;
             } else if (newCurrentPrice >= trade.stopLoss) {
               newStatus = 'CLOSED_SL'; closeReason = 'Stop Loss triggered';
-              pnl = (trade.entryPrice - trade.stopLoss) * (trade.investment / trade.entryPrice); // Simplified PNL
+              finalPnl = (trade.entryPrice - trade.stopLoss) / trade.entryPrice * trade.investment;
             }
           }
           
-          // Check Max Holding Period
           if (newStatus === 'ACTIVE' && (Date.now() > trade.openTime + trade.maxHoldingPeriodSeconds * 1000)) {
             newStatus = 'CLOSED_TIMEOUT'; closeReason = 'Max holding period reached';
-            // Calculate PNL based on current price at timeout
-             if (trade.direction === 'BUY') {
-                pnl = (newCurrentPrice - trade.entryPrice) * (trade.investment / trade.entryPrice);
-            } else { // SELL
-                pnl = (trade.entryPrice - newCurrentPrice) * (trade.investment / trade.entryPrice);
-            }
+            finalPnl = currentPnl; // PNL at timeout is the currentPnl
           }
 
-
           if (newStatus !== 'ACTIVE') {
+            finalPnl = parseFloat(finalPnl.toFixed(2));
             const closedTrade: ClosedMT5Trade = {
               ...trade,
               status: newStatus,
               closeTime: Date.now(),
-              pnl: parseFloat(pnl.toFixed(2)), // ensure pnl is number and formatted
-              currentPrice: newCurrentPrice, // final price
+              pnl: finalPnl,
+              currentPrice: newCurrentPrice,
               closeReason,
             };
             setClosedTrades(prevClosed => [closedTrade, ...prevClosed]);
-            setCurrentBalance(prevBal => prevBal + trade.investment + closedTrade.pnl!); // Return investment + PNL
+            
+            // Balance adjustment: Investment was already deducted. Add back investment + final PNL.
+            // The PNL difference applied during active trade needs to be accounted for to avoid double counting/subtracting.
+            // The current balance already reflects (Original Balance - Investment + Sum of PNL changes during trade).
+            // So, when closing, we need to add back (Investment + Final PNL) - (Sum of PNL changes during trade).
+            // Easier: the current balance already reflects the *current* PNL. So just add back the investment.
+            setCurrentBalance(prevBal => parseFloat((prevBal + trade.investment).toFixed(2)));
             
             setTimeout(() => toast({
               title: `MT5 Trade Closed (${paperTradingMode})`,
-              description: `${trade.instrument} ${trade.direction} closed. Reason: ${closeReason}. P/L: $${closedTrade.pnl!.toFixed(2)}`,
-              variant: closedTrade.pnl! >= 0 ? 'default' : 'destructive'
+              description: `${trade.instrument} ${trade.direction} closed. Reason: ${closeReason}. P/L: $${finalPnl.toFixed(2)}`,
+              variant: finalPnl >= 0 ? 'default' : 'destructive'
             }),0);
-            return null; // Remove from active trades
+            return null;
           }
-          return { ...trade, currentPrice: newCurrentPrice };
+          return { ...trade, currentPrice: newCurrentPrice, pnl: currentPnl };
         });
         return updatedTrades.filter(trade => trade !== null) as MT5TradeOrder[];
       });
-    }, 3000); // Update every 3 seconds
+    }, 3000);
 
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paperTradingMode, setCurrentBalance]);
-
 
   const getStatusBadge = (status: MT5TradeStatus) => {
     switch (status) {
@@ -244,16 +253,19 @@ export default function MT5TradingPage() {
     return price.toFixed(getInstrumentDecimalPlaces(instrument));
   };
 
+  const AccountIcon = paperTradingMode === 'live' ? Briefcase : UserCheck;
 
   return (
     <div className="container mx-auto py-2 space-y-6">
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Settings2 className="h-7 w-7 text-primary"/> MT5 Style Trading</CardTitle>
-          <CardDescription>Place longer-term trades with AI-assisted Take Profit and Stop Loss levels. Bal: ${currentBalance.toFixed(2)} ({paperTradingMode})</CardDescription>
+          <CardDescription className="flex items-center gap-1">
+             <AccountIcon className={`h-4 w-4 ${paperTradingMode === 'live' ? 'text-green-500' : 'text-blue-500'}`} />
+             {paperTradingMode === 'paper' ? 'Demo' : 'Real (Simulated)'} Balance: ${currentBalance.toFixed(2)}
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Trade Setup Section */}
           <div className="space-y-4">
             <Card>
                 <CardHeader><CardTitle className="text-lg">Trade Parameters</CardTitle></CardHeader>
@@ -311,7 +323,6 @@ export default function MT5TradingPage() {
             </Card>
           </div>
 
-          {/* AI Analysis & Execution Section */}
           <div className="space-y-4">
              <Card>
                 <CardHeader>
@@ -333,7 +344,10 @@ export default function MT5TradingPage() {
                         <div className="space-y-2 text-sm p-3 bg-muted/50 rounded-md">
                             <div className="flex items-center gap-2">
                                 <strong>Potential Direction:</strong>
-                                <Badge variant={aiAnalysis.potentialDirection === 'UP' ? 'default' : aiAnalysis.potentialDirection === 'DOWN' ? 'destructive' : 'secondary'} className={aiAnalysis.potentialDirection === 'UP' ? "bg-green-500" : aiAnalysis.potentialDirection === 'DOWN' ? "bg-red-500" : ""}>{aiAnalysis.potentialDirection}</Badge>
+                                <Badge variant={aiAnalysis.potentialDirection === 'UP' ? 'default' : aiAnalysis.potentialDirection === 'DOWN' ? 'destructive' : 'secondary'} 
+                                       className={`${aiAnalysis.potentialDirection === 'UP' ? "bg-green-500 text-white" : aiAnalysis.potentialDirection === 'DOWN' ? "bg-red-500 text-white" : ""} `}>
+                                  {aiAnalysis.potentialDirection}
+                                </Badge>
                             </div>
                             <p><strong>Suggested TP:</strong> {formatPrice(aiAnalysis.suggestedTakeProfit, selectedInstrument)}</p>
                             <p><strong>Suggested SL:</strong> {formatPrice(aiAnalysis.suggestedStopLoss, selectedInstrument)}</p>
@@ -369,7 +383,6 @@ export default function MT5TradingPage() {
         </CardContent>
       </Card>
 
-      {/* Trades Display Section */}
       <Tabs defaultValue="active" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="active">Active Trades ({activeTrades.length})</TabsTrigger>
@@ -383,17 +396,20 @@ export default function MT5TradingPage() {
             <CardContent>
               {activeTrades.length === 0 ? <p className="text-muted-foreground">No active trades.</p> : (
                 <Table>
-                  <TableHeader><TableRow><TableHead>Instrument</TableHead><TableHead>Direction</TableHead><TableHead>Investment</TableHead><TableHead>Entry</TableHead><TableHead>Current</TableHead><TableHead>TP</TableHead><TableHead>SL</TableHead><TableHead>Opened</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Instrument</TableHead><TableHead>Direction</TableHead><TableHead>Investment</TableHead><TableHead>Entry</TableHead><TableHead>Current</TableHead><TableHead>TP</TableHead><TableHead>SL</TableHead><TableHead>P/L</TableHead><TableHead>Opened</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {activeTrades.map(trade => (
                       <TableRow key={trade.id}>
                         <TableCell>{trade.instrument}</TableCell>
-                        <TableCell><Badge variant={trade.direction === 'BUY' ? 'default': 'destructive'} className={trade.direction === 'BUY' ? 'bg-green-500' : 'bg-red-500'}>{trade.direction}</Badge></TableCell>
+                        <TableCell><Badge variant={trade.direction === 'BUY' ? 'default': 'destructive'} className={trade.direction === 'BUY' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>{trade.direction}</Badge></TableCell>
                         <TableCell>${trade.investment.toFixed(2)}</TableCell>
                         <TableCell>{formatPrice(trade.entryPrice, trade.instrument)}</TableCell>
                         <TableCell>{formatPrice(trade.currentPrice, trade.instrument)}</TableCell>
                         <TableCell>{formatPrice(trade.takeProfit, trade.instrument)}</TableCell>
                         <TableCell>{formatPrice(trade.stopLoss, trade.instrument)}</TableCell>
+                        <TableCell className={trade.pnl != null && trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          ${trade.pnl != null ? trade.pnl.toFixed(2) : '0.00'}
+                        </TableCell>
                         <TableCell>{new Date(trade.openTime).toLocaleTimeString()}</TableCell>
                         <TableCell>{getStatusBadge(trade.status)}</TableCell>
                       </TableRow>
@@ -423,11 +439,13 @@ export default function MT5TradingPage() {
                     {closedTrades.map(trade => (
                       <TableRow key={trade.id}>
                         <TableCell>{trade.instrument}</TableCell>
-                        <TableCell><Badge variant={trade.direction === 'BUY' ? 'default': 'destructive'} className={trade.direction === 'BUY' ? 'bg-green-500' : 'bg-red-500'}>{trade.direction}</Badge></TableCell>
+                        <TableCell><Badge variant={trade.direction === 'BUY' ? 'default': 'destructive'} className={trade.direction === 'BUY' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>{trade.direction}</Badge></TableCell>
                         <TableCell>${trade.investment.toFixed(2)}</TableCell>
                         <TableCell>{formatPrice(trade.entryPrice, trade.instrument)}</TableCell>
-                        <TableCell>{formatPrice(trade.currentPrice, trade.instrument)}</TableCell> {/* currentPrice here is effectively close price */}
-                        <TableCell className={trade.pnl! >= 0 ? 'text-green-600' : 'text-red-600'}>${trade.pnl!.toFixed(2)}</TableCell>
+                        <TableCell>{formatPrice(trade.currentPrice, trade.instrument)}</TableCell>
+                        <TableCell className={trade.pnl != null && trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          ${trade.pnl != null ? trade.pnl.toFixed(2) : 'N/A'}
+                        </TableCell>
                         <TableCell>{trade.closeReason}</TableCell>
                         <TableCell>{new Date(trade.closeTime!).toLocaleTimeString()}</TableCell>
                         <TableCell>{getStatusBadge(trade.status)}</TableCell>
@@ -447,6 +465,7 @@ export default function MT5TradingPage() {
                 <li>Price movements are simulated and may not reflect actual market conditions.</li>
                 <li>AI analysis is for informational purposes and not financial advice. Use at your own discretion.</li>
                 <li>P/L calculations are simplified for this simulation. Real MT5 P/L depends on lot size, leverage, and contract specifications.</li>
+                <li>Balance fluctuation for active trades is based on this simplified P/L and is for demonstration purposes.</li>
             </ul>
         </div>
     </div>
