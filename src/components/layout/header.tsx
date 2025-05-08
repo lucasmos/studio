@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { UserCircle, Bell } from 'lucide-react';
 import { Logo } from '@/components/icons/logo';
 import Link from 'next/link';
+import { ThemeToggle } from '@/components/ui/theme-toggle'; // Import ThemeToggle
 
 export function Header() {
   return (
@@ -14,6 +15,7 @@ export function Header() {
         </Link>
       </div>
       <div className="flex items-center gap-3">
+        <ThemeToggle /> {/* Add ThemeToggle component here */}
         <Button variant="ghost" size="icon" aria-label="Notifications">
           <Bell className="h-5 w-5" />
         </Button>
