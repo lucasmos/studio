@@ -41,7 +41,16 @@ const instrumentToDerivSymbol = (instrument: TradingInstrument): string => {
       return 'frxXAUUSD'; // Gold vs USD
     case 'ETH/USD':
       return 'cryETHUSD'; // Ethereum vs USD
-    // SOL/USD case removed as 'crySOLUSD' was reported as an invalid symbol by Deriv API
+    case 'Volatility 10 Index':
+      return 'R_10';
+    case 'Volatility 25 Index':
+      return 'R_25';
+    case 'Volatility 50 Index':
+      return 'R_50';
+    case 'Volatility 75 Index':
+      return 'R_75';
+    case 'Volatility 100 Index':
+      return 'R_100';
     default:
       // This should ideally not be reached if TradingInstrument type is exhaustive
       // and all UI elements use instruments from this type.
@@ -49,7 +58,7 @@ const instrumentToDerivSymbol = (instrument: TradingInstrument): string => {
       const exhaustiveCheck: never = instrument; 
       console.error(`Unknown instrument passed to instrumentToDerivSymbol: ${exhaustiveCheck}`);
       // Fallback to a commonly available symbol if type safety fails, though this indicates a bug.
-      return 'R_100'; 
+      return 'R_100'; // Fallback to a common Volatility Index
   }
 };
 
@@ -87,7 +96,7 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
         ws.send(JSON.stringify({ authorize: DERIV_API_TOKEN }));
       } else {
         console.warn('Deriv API token is not available. Attempting to fetch public data. This may fail for protected resources like tick history.');
-        sendTicksRequest();
+        sendTicksRequest(); // Proceed without authorization if no token
       }
     };
 
@@ -99,6 +108,7 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
           end: 'latest',
           count: 50, // Fetch 50 ticks for the chart
           style: 'ticks',
+          // subscribe: 1 // Uncomment if you want real-time tick updates, handle 'tick' messages
         })
       );
       requestSent = true;
@@ -113,6 +123,7 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
           console.error(`Deriv API Error for ${derivSymbol}:`, response.error.message, response.error.code);
           reject(new Error(`Deriv API Error for ${derivSymbol}: ${response.error.message} (Code: ${response.error.code})`));
           ws.close();
+          clearTimeout(timeout);
           return;
         }
 
@@ -123,8 +134,19 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
             sendTicksRequest(); 
           } else {
             console.error('Deriv API Authorization failed. Response:', response);
-            reject(new Error('Deriv API Authorization failed. Ensure your token is valid and has tick_history permissions.'));
-            ws.close();
+            // If auth fails but token was provided, it might be invalid.
+            // If no token was provided, this path shouldn't be hit based on current logic.
+            // We could choose to proceed with public data request or reject.
+            // For now, if auth was attempted and failed, we reject.
+            if(DERIV_API_TOKEN){
+              reject(new Error('Deriv API Authorization failed. Ensure your token is valid and has tick_history permissions.'));
+              ws.close();
+              clearTimeout(timeout);
+              return;
+            }
+            // If no token was provided, and auth somehow failed (unexpected), try public request
+            console.warn('Authorization message received without successful auth, but no token was provided. Proceeding with public request.');
+            sendTicksRequest();
           }
           return;
         }
@@ -148,37 +170,49 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
             reject(new Error(`Invalid data format in ticks_history response for ${derivSymbol}`));
           }
           ws.close();
+          clearTimeout(timeout);
         } else if (response.echo_req && response.echo_req.ticks_history && !response.history) {
+            // This can happen if the symbol is valid but has no recent ticks, or if not authorized for a protected symbol
             console.warn(`No history data returned for ${derivSymbol}. This might be due to an invalid symbol, no recent ticks, or insufficient permissions if not authorized. Echo_req:`, response.echo_req);
             resolve([]); 
             ws.close();
+            clearTimeout(timeout);
         }
+        // Handle 'tick' messages if subscribed
+        // if (response.msg_type === 'tick' && response.tick) {
+        //   console.log('Received tick update:', response.tick);
+        //   // Here you would typically update a real-time chart or data store
+        // }
+
 
       } catch (parseError) {
         console.error(`Error parsing Deriv API response for ${derivSymbol}:`, parseError);
         reject(new Error(`Error parsing Deriv API response for ${derivSymbol}`));
         ws.close();
+        clearTimeout(timeout);
       }
     };
 
     ws.onerror = (errorEvent) => {
       console.error(`Deriv WebSocket error for ${derivSymbol}. Event:`, errorEvent);
-      if (errorEvent instanceof ErrorEvent && errorEvent.error instanceof DOMException) {
-        reject(new Error(`Deriv WebSocket connection error for ${derivSymbol}: ${errorEvent.message}. Check network and API endpoint.`));
-      } else if (errorEvent instanceof Event && errorEvent.type === 'error') { 
-        reject(new Error(`Deriv WebSocket connection error for ${derivSymbol}. Check network and API endpoint.`));
-      }
-      else {
-        reject(new Error(`Deriv WebSocket error for ${derivSymbol}. See browser console for details.`));
+      // Browser WebSocket errors are typically DOMExceptions or generic Events
+      if (errorEvent instanceof Event && 'message' in errorEvent) {
+         reject(new Error(`Deriv WebSocket connection error for ${derivSymbol}: ${(errorEvent as any).message}. Check network and API endpoint.`));
+      } else {
+        reject(new Error(`Deriv WebSocket error for ${derivSymbol}. Check network, API endpoint, and console for details.`));
       }
       if (ws.readyState !== ws.CLOSED && ws.readyState !== ws.CLOSING) {
         ws.close();
       }
+      clearTimeout(timeout);
     };
 
     ws.onclose = (event) => {
-      clearTimeout(timeout);
+      clearTimeout(timeout); // Ensure timeout is cleared on close
       console.log(`Deriv WebSocket disconnected for ${derivSymbol}. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`);
+      // If the promise hasn't resolved/rejected yet, it means an unexpected close.
+      // This check might be redundant if all paths leading to close also resolve/reject.
+      // For safety, one might reject here if not already settled.
     };
   });
 }

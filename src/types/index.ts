@@ -1,9 +1,18 @@
-export type TradingInstrument =
+export type VolatilityInstrumentType =
+  | 'Volatility 10 Index'
+  | 'Volatility 25 Index'
+  | 'Volatility 50 Index'
+  | 'Volatility 75 Index'
+  | 'Volatility 100 Index';
+
+export type ForexCryptoCommodityInstrumentType =
   | 'EUR/USD'
   | 'GBP/USD'
   | 'BTC/USD'
   | 'XAU/USD' // Gold
   | 'ETH/USD'; // Ethereum
+
+export type TradingInstrument = ForexCryptoCommodityInstrumentType | VolatilityInstrumentType;
 
 export type TradingMode = 'conservative' | 'balanced' | 'aggressive';
 
@@ -24,8 +33,8 @@ export interface PriceTick {
   time: string; 
 }
 
-export interface AutomatedTradeProposal { // For binary options auto-trading
-  instrument: TradingInstrument;
+export interface AutomatedTradeProposal { // For binary options auto-trading (Forex/Crypto/Commodity)
+  instrument: ForexCryptoCommodityInstrumentType;
   action: 'CALL' | 'PUT';
   stake: number;
   durationSeconds: number; 
@@ -49,18 +58,50 @@ export interface ProfitsClaimable {
   losingTrades: number;
 }
 
-// For AI Flow (Binary options auto-trading)
+// For AI Flow (Binary options auto-trading - Forex/Crypto/Commodity)
 export interface AutomatedTradingStrategyInput {
   totalStake: number;
-  instruments: TradingInstrument[];
+  instruments: ForexCryptoCommodityInstrumentType[];
   tradingMode: TradingMode;
-  instrumentTicks: Record<TradingInstrument, PriceTick[]>; 
+  instrumentTicks: Record<ForexCryptoCommodityInstrumentType, PriceTick[]>; 
 }
 
 export interface AutomatedTradingStrategyOutput {
   tradesToExecute: AutomatedTradeProposal[];
   overallReasoning: string;
 }
+
+// For AI Flow (Volatility auto-trading)
+export interface VolatilityTradeProposal {
+  instrument: VolatilityInstrumentType;
+  action: 'CALL' | 'PUT';
+  stake: number;
+  durationSeconds: number;
+  reasoning: string;
+}
+
+export interface ActiveAutomatedVolatilityTrade extends VolatilityTradeProposal {
+  id: string;
+  entryPrice: number;
+  stopLossPrice: number;
+  startTime: number;
+  status: 'active' | 'won' | 'lost_duration' | 'lost_stoploss';
+  pnl?: number;
+  currentPrice?: number;
+}
+
+export interface VolatilityTradingStrategyInput {
+  totalStake: number;
+  instruments: VolatilityInstrumentType[];
+  tradingMode: TradingMode;
+  instrumentTicks: Record<VolatilityInstrumentType, PriceTick[]>;
+}
+
+export interface VolatilityTradingStrategyOutput {
+  tradesToExecute: VolatilityTradeProposal[];
+  overallReasoning: string;
+}
+
 
 // Authentication types
 export type AuthMethod = 'email' | 'google' | 'deriv' | 'demo' | null;
@@ -91,7 +132,7 @@ export type MT5HoldingPeriod = '1H' | '4H' | '1D' | '1W'; // Example holding per
 
 export interface MT5TradeOrder {
   id: string;
-  instrument: TradingInstrument;
+  instrument: TradingInstrument; // Can be any type of instrument available for MT5
   direction: MT5TradeDirection;
   investment: number; // Amount invested
   entryPrice: number;
@@ -107,7 +148,7 @@ export interface MT5TradeOrder {
 }
 
 export interface MT5InstrumentAnalysis {
-  instrument: TradingInstrument;
+  instrument: TradingInstrument; // Can be any type for MT5 analysis
   currentPrice: number;
   suggestedTakeProfit: number;
   suggestedStopLoss: number;

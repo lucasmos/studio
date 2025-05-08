@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import type { TradingMode, TradeDuration, PaperTradingMode } from '@/types';
+import type { TradingMode, TradeDuration, PaperTradingMode, TradingInstrument, ForexCryptoCommodityInstrumentType } from '@/types';
 import { TrendingUp, TrendingDown, Bot, DollarSign, Play, Square, Briefcase, UserCheck } from 'lucide-react'; 
 import { Badge } from '@/components/ui/badge';
 
@@ -29,7 +29,9 @@ interface TradeControlsProps {
   onStopAiAutoTrade: () => void;
   isAutoTradingActive: boolean;
   disableManualControls?: boolean;
-  currentBalance: number; // Added to check against stake for manual trades
+  currentBalance: number; 
+  supportedInstrumentsForManualAi: ForexCryptoCommodityInstrumentType[];
+  currentSelectedInstrument: TradingInstrument;
 }
 
 export function TradeControls({
@@ -51,6 +53,8 @@ export function TradeControls({
   isAutoTradingActive,
   disableManualControls = false,
   currentBalance,
+  supportedInstrumentsForManualAi,
+  currentSelectedInstrument,
 }: TradeControlsProps) {
   const tradingModes: TradingMode[] = ['conservative', 'balanced', 'aggressive'];
   const tradeDurations: TradeDuration[] = ['30s', '1m', '5m', '15m', '30m'];
@@ -78,12 +82,13 @@ export function TradeControls({
   };
 
   const isManualTradeDisabled = stakeAmount <= 0 || disableManualControls || isAiLoading || stakeAmount > currentBalance;
+  const isManualAiRecommendationDisabled = isAiLoading || disableManualControls || !supportedInstrumentsForManualAi.includes(currentSelectedInstrument as ForexCryptoCommodityInstrumentType);
 
   return (
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle>Trade Terminal</CardTitle>
-        <CardDescription>Configure and execute your trades.</CardDescription>
+        <CardDescription>Configure and execute your trades. This terminal is for Forex/Crypto/Commodity instruments.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         
@@ -163,7 +168,8 @@ export function TradeControls({
              <Button
               onClick={onGetAiRecommendation}
               className="w-full bg-gradient-to-r from-primary to-purple-600 text-primary-foreground hover:opacity-90 transition-opacity"
-              disabled={isAiLoading || disableManualControls}
+              disabled={isManualAiRecommendationDisabled}
+              title={!supportedInstrumentsForManualAi.includes(currentSelectedInstrument as ForexCryptoCommodityInstrumentType) ? `AI for ${currentSelectedInstrument} on Volatility page.` : "Get AI Recommendation"}
             >
               <Bot className="mr-2 h-5 w-5" />
               {isAiLoading && !isAutoTradingActive ? 'Analyzing...' : 'Get Manual AI Recommendation'}
@@ -198,7 +204,7 @@ export function TradeControls({
         <div>
           <Label htmlFor="auto-stake-amount" className="text-sm font-medium text-muted-foreground">AI Auto-Trade Total Stake ($)</Label>
            <p className="text-xs text-muted-foreground mb-1">
-            AI will apportion this stake across recommended trades for the selected account type ({paperTradingMode === 'live' ? 'Real - Simulated' : 'Demo'}).
+            AI will apportion this stake across Forex/Crypto/Commodity trades for the selected account type ({paperTradingMode === 'live' ? 'Real - Simulated' : 'Demo'}).
           </p>
           <div className="relative mt-1">
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -234,13 +240,13 @@ export function TradeControls({
             disabled={isAiLoading || autoTradeTotalStake <=0 || autoTradeTotalStake > currentBalance}
           >
             <Play className="mr-2 h-5 w-5" />
-            {isAiLoading && isAutoTradingActive ? 'Initializing AI Trades...' : 'Start AI Auto-Trading'}
+            {isAiLoading && isAutoTradingActive ? 'Initializing AI Trades...' : 'Start AI Auto-Trading (Forex/Crypto/Commodities)'}
           </Button>
         )}
         
         <p className="text-xs text-muted-foreground text-center">
-          Trading involves significant risk. Past performance is not indicative of future results. AI trading is experimental.
-          Real account trading is simulated.
+          Trading involves significant risk. AI strategies are experimental.
+          Real account trading is simulated. For Volatility Index auto-trading, please use the Volatility Trading page.
         </p>
       </CardContent>
     </Card>

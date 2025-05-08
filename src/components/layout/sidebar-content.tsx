@@ -15,7 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/icons/logo';
-import { LayoutDashboard, History, Settings, LogOut, DollarSign, LogIn, CreditCard, BarChartBig, User, AlertCircle } from 'lucide-react';
+import { LayoutDashboard, History, Settings, LogOut, DollarSign, LogIn, CreditCard, BarChartBig, User, AlertCircle, Activity } from 'lucide-react'; // Added Activity for Volatility
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
@@ -37,7 +37,8 @@ export function SidebarContentComponent() {
     if (isMobile) {
       setOpenMobile(false);
     } else if (open) { 
-      setOpen(false);  
+      // setOpen(false); // Removed: This was causing the sidebar to always collapse on desktop menu click.
+                       // Desktop sidebar collapse/expand should be managed by its dedicated trigger or by resizing.
     }
   };
 
@@ -61,6 +62,19 @@ export function SidebarContentComponent() {
               <Link href="/">
                 <LayoutDashboard />
                 <span>Dashboard</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+           <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === '/volatility-trading'}
+              tooltip={{ children: 'Volatility Trading', side: 'right' }}
+              onClick={handleMenuClick}
+            >
+              <Link href="/volatility-trading">
+                <Activity />
+                <span>Volatility Trading</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

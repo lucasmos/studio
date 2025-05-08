@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
-import type { TradingInstrument, PriceTick } from '@/types';
+import type { TradingInstrument, PriceTick, VolatilityInstrumentType, ForexCryptoCommodityInstrumentType } from '@/types';
 import { getTicks } from '@/services/deriv'; 
 import { Skeleton } from '@/components/ui/skeleton';
 import { getInstrumentDecimalPlaces } from '@/lib/utils';
@@ -18,13 +18,12 @@ const chartConfig = {
   },
 };
 
-interface TradingChartProps {
+interface SingleInstrumentChartDisplayProps {
   instrument: TradingInstrument;
-  onInstrumentChange: (instrument: TradingInstrument) => void;
 }
 
 // Renamed and Exported for use in MT5 Page and potentially elsewhere
-export function SingleInstrumentChartDisplay({ instrument }: { instrument: TradingInstrument }) {
+export function SingleInstrumentChartDisplay({ instrument }: SingleInstrumentChartDisplayProps) {
   const [data, setData] = useState<PriceTick[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,34 +33,34 @@ export function SingleInstrumentChartDisplay({ instrument }: { instrument: Tradi
     let isActive = true; 
 
     const fetchTicksData = async () => {
-      if (!isActive) return; // Prevent fetching if component unmounted during async operation
+      if (!isActive) return; 
       setIsLoading(true);
       setError(null);
       try {
         const ticks = await getTicks(instrument);
-        if (isActive) { // Check again before setting state
+        if (isActive) { 
           setData(ticks);
         }
       } catch (err) {
         console.error(`Failed to fetch ticks for ${instrument}:`, err);
-        if (isActive) { // Check again before setting state
+        if (isActive) { 
           setError(`Failed to load data for ${instrument}.`);
           setData([]); 
         }
       } finally {
-        if (isActive) { // Check again before setting state
+        if (isActive) { 
           setIsLoading(false);
         }
       }
     };
 
-    fetchTicksData(); // Initial fetch
+    fetchTicksData(); 
 
-    const intervalId = setInterval(fetchTicksData, 30000); // Refresh every 30 seconds
+    const intervalId = setInterval(fetchTicksData, 30000); 
 
     return () => {
-      isActive = false; // Mark as inactive on unmount
-      clearInterval(intervalId); // Clear interval on unmount
+      isActive = false; 
+      clearInterval(intervalId); 
     };
   }, [instrument]); 
 
@@ -143,26 +142,32 @@ export function SingleInstrumentChartDisplay({ instrument }: { instrument: Tradi
   );
 }
 
+interface TradingChartProps {
+  instrument: TradingInstrument;
+  onInstrumentChange: (instrument: TradingInstrument) => void;
+}
+
+const forexCryptoCommodityInstruments: ForexCryptoCommodityInstrumentType[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD'];
+const volatilityInstruments: VolatilityInstrumentType[] = ['Volatility 10 Index', 'Volatility 25 Index', 'Volatility 50 Index', 'Volatility 75 Index', 'Volatility 100 Index'];
+const allInstruments: TradingInstrument[] = [...forexCryptoCommodityInstruments, ...volatilityInstruments];
+
 
 export function TradingChart({ instrument, onInstrumentChange }: TradingChartProps) {
-  const instruments: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD'];
-
   return (
     <Card className="shadow-lg col-span-1 md:col-span-2">
       <CardHeader>
         <CardTitle>Market Watch</CardTitle>
-        <CardDescription>Live price action for selected instruments.</CardDescription>
+        <CardDescription>Live price action for selected instruments. Includes Forex, Crypto, Commodities and Volatility Indices.</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs value={instrument} onValueChange={(value) => onInstrumentChange(value as TradingInstrument)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 mb-4"> 
-            {instruments.map((inst) => (
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 mb-4"> 
+            {allInstruments.map((inst) => (
               <TabsTrigger key={inst} value={inst}>{inst}</TabsTrigger>
             ))}
           </TabsList>
-          {instruments.map((inst) => (
+          {allInstruments.map((inst) => (
             <TabsContent key={inst} value={inst}>
-              {/* Use the exported chart display component here */}
               <SingleInstrumentChartDisplay instrument={inst} /> 
             </TabsContent>
           ))}

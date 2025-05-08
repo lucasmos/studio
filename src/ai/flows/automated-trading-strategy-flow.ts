@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview AI flow for generating an automated trading strategy.
+ * @fileOverview AI flow for generating an automated trading strategy for Forex, Crypto, and Commodities.
  *
  * - generateAutomatedTradingStrategy - A function that creates a trading plan.
  * - AutomatedTradingStrategyInput - The input type.
@@ -9,7 +9,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { TradingInstrument, PriceTick } from '@/types'; 
+import type { ForexCryptoCommodityInstrumentType, TradingMode, PriceTick, AutomatedTradingStrategyInput, AutomatedTradingStrategyOutput, AutomatedTradeProposal } from '@/types'; 
 
 // Define Zod schemas based on TypeScript types
 const PriceTickSchema = z.object({
@@ -18,37 +18,35 @@ const PriceTickSchema = z.object({
   time: z.string(),
 });
 
-const TradingInstrumentEnum = z.nativeEnum({
+const ForexCryptoCommodityInstrumentEnum = z.nativeEnum({
   EUR_USD: 'EUR/USD', 
   GBP_USD: 'GBP/USD', 
   BTC_USD: 'BTC/USD',
   XAU_USD: 'XAU/USD', // Gold
   ETH_USD: 'ETH/USD', // Ethereum
-} as const);
+} as const satisfies Record<string, ForexCryptoCommodityInstrumentType>);
+
 
 const AutomatedTradingStrategyInputSchema = z.object({
-  totalStake: z.number().positive().describe('Total amount available for trading in this session.'),
-  instruments: z.array(TradingInstrumentEnum).describe('List of available trading instruments.'),
+  totalStake: z.number().positive().describe('Total amount available for trading in this session (Forex, Crypto, Commodities).'),
+  instruments: z.array(ForexCryptoCommodityInstrumentEnum).describe('List of available Forex, Crypto, or Commodity trading instruments.'),
   tradingMode: z.enum(['conservative', 'balanced', 'aggressive']).describe('The user-defined trading risk mode.'),
-  instrumentTicks: z.record(TradingInstrumentEnum, z.array(PriceTickSchema))
+  instrumentTicks: z.record(ForexCryptoCommodityInstrumentEnum, z.array(PriceTickSchema))
     .describe('Record of recent price ticks for each available instrument. Key is instrument symbol, value is array of ticks (latest first).'),
 });
 
 const AutomatedTradeProposalSchema = z.object({
-  instrument: TradingInstrumentEnum.describe('The trading instrument for this trade.'),
+  instrument: ForexCryptoCommodityInstrumentEnum.describe('The trading instrument for this trade.'),
   action: z.enum(['CALL', 'PUT']).describe('The trade direction (CALL for price up, PUT for price down).'),
-  stake: z.number().describe('The amount of stake apportioned to this specific trade. Must be a positive value, minimum 0.01.'),
-  durationSeconds: z.number().int().describe('The duration of the trade in seconds (e.g., 30, 60, 300). Must be a positive integer, minimum 1.'),
+  stake: z.number().positive().min(0.01).describe('The amount of stake apportioned to this specific trade. Must be a positive value, minimum 0.01.'),
+  durationSeconds: z.number().int().positive().min(1).describe('The duration of the trade in seconds (e.g., 30, 60, 300). Must be a positive integer, minimum 1.'),
   reasoning: z.string().describe('Brief reasoning for this specific trade proposal.'),
 });
 
 const AutomatedTradingStrategyOutputSchema = z.object({
-  tradesToExecute: z.array(AutomatedTradeProposalSchema).describe('A list of trades the AI has decided to execute.'),
+  tradesToExecute: z.array(AutomatedTradeProposalSchema).describe('A list of trades the AI has decided to execute for Forex/Crypto/Commodities.'),
   overallReasoning: z.string().describe('The overall reasoning behind the selected trades and stake apportionment strategy.'),
 });
-
-export type AutomatedTradingStrategyInput = z.infer<typeof AutomatedTradingStrategyInputSchema>;
-export type AutomatedTradingStrategyOutput = z.infer<typeof AutomatedTradingStrategyOutputSchema>;
 
 
 export async function generateAutomatedTradingStrategy(input: AutomatedTradingStrategyInput): Promise<AutomatedTradingStrategyOutput> {
@@ -59,11 +57,11 @@ const prompt = ai.definePrompt({
   name: 'automatedTradingStrategyPrompt',
   input: {schema: AutomatedTradingStrategyInputSchema},
   output: {schema: AutomatedTradingStrategyOutputSchema},
-  prompt: `You are an expert AI trading strategist. Your goal is to devise a set of trades to maximize profit based on the user's total stake, preferred instruments, trading mode, and recent price data.
+  prompt: `You are an expert AI trading strategist for Forex, Cryptocurrencies, and Commodities. Your goal is to devise a set of trades to maximize profit based on the user's total stake, preferred instruments, trading mode, and recent price data.
 You MUST aim for a minimum 70% win rate across the proposed trades. Prioritize high-probability setups.
 
 User's Total Stake for this session: {{{totalStake}}}
-Available Instruments: {{#each instruments}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+Available Instruments (Forex/Crypto/Commodities): {{#each instruments}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 Trading Mode: {{{tradingMode}}}
 
 Recent Price Ticks (latest tick is the most recent price):
@@ -104,10 +102,10 @@ const automatedTradingStrategyFlow = ai.defineFlow(
     inputSchema: AutomatedTradingStrategyInputSchema,
     outputSchema: AutomatedTradingStrategyOutputSchema,
   },
-  async (input: AutomatedTradingStrategyInput) => {
+  async (input: AutomatedTradingStrategyInput): Promise<AutomatedTradingStrategyOutput> => {
     const {output} = await prompt(input);
     if (!output) {
-      throw new Error("AI failed to generate an automated trading strategy.");
+      throw new Error("AI failed to generate an automated trading strategy for Forex/Crypto/Commodities.");
     }
     
     // Validate and filter AI output for stake and durationSeconds
@@ -152,4 +150,3 @@ const automatedTradingStrategyFlow = ai.defineFlow(
     return output;
   }
 );
-

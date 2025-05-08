@@ -3,67 +3,112 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { DollarSign, Zap, CheckCircle, XCircle, Info } from 'lucide-react';
+import { DollarSign, Zap, CheckCircle, XCircle, Info, Activity, TrendingUp } from 'lucide-react';
 import type { ProfitsClaimable as ProfitsClaimableType, PaperTradingMode } from '@/types';
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+type ProfitCategory = 'forexCrypto' | 'volatility';
+
 export default function ProfitsClaimablePage() {
-  const [demoProfitsData, setDemoProfitsData] = useState<ProfitsClaimableType>({
+  const [demoForexCryptoProfits, setDemoForexCryptoProfits] = useState<ProfitsClaimableType>({
     totalNetProfit: 0, tradeCount: 0, winningTrades: 0, losingTrades: 0,
   });
-  const [realProfitsData, setRealProfitsData] = useState<ProfitsClaimableType>({
+  const [realForexCryptoProfits, setRealForexCryptoProfits] = useState<ProfitsClaimableType>({
     totalNetProfit: 0, tradeCount: 0, winningTrades: 0, losingTrades: 0,
   });
-  const [activeTab, setActiveTab] = useState<PaperTradingMode>('paper'); // 'paper' for Demo, 'live' for Real
+  const [demoVolatilityProfits, setDemoVolatilityProfits] = useState<ProfitsClaimableType>({
+    totalNetProfit: 0, tradeCount: 0, winningTrades: 0, losingTrades: 0,
+  });
+  const [realVolatilityProfits, setRealVolatilityProfits] = useState<ProfitsClaimableType>({
+    totalNetProfit: 0, tradeCount: 0, winningTrades: 0, losingTrades: 0,
+  });
+
+  const [activeAccountType, setActiveAccountType] = useState<PaperTradingMode>('paper');
+  const [activeProfitCategory, setActiveProfitCategory] = useState<ProfitCategory>('forexCrypto');
+  
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    const loadProfits = (mode: PaperTradingMode) => {
-      const storedProfits = localStorage.getItem(`profitsClaimable_${mode}`);
+    const loadProfits = (mode: PaperTradingMode, category: ProfitCategory) => {
+      const profitsKey = category === 'forexCrypto' 
+        ? `forexCryptoProfitsClaimable_${mode}` 
+        : `volatilityProfitsClaimable_${mode}`;
+      const storedProfits = localStorage.getItem(profitsKey);
+      
       if (storedProfits) {
         try {
           const parsedProfits: ProfitsClaimableType = JSON.parse(storedProfits);
-          if (mode === 'paper') setDemoProfitsData(parsedProfits);
-          else setRealProfitsData(parsedProfits);
+          if (mode === 'paper') {
+            if (category === 'forexCrypto') setDemoForexCryptoProfits(parsedProfits);
+            else setDemoVolatilityProfits(parsedProfits);
+          } else { // live
+            if (category === 'forexCrypto') setRealForexCryptoProfits(parsedProfits);
+            else setRealVolatilityProfits(parsedProfits);
+          }
         } catch (error) {
-          console.error(`Failed to parse ${mode} profits from localStorage`, error);
+          console.error(`Failed to parse ${category} ${mode} profits from localStorage`, error);
           toast({
-            title: `Error Loading ${mode === 'paper' ? 'Demo' : 'Real'} Profits`,
+            title: `Error Loading ${mode === 'paper' ? 'Demo' : 'Real'} ${category === 'forexCrypto' ? 'Forex/Crypto' : 'Volatility'} Profits`,
             description: "Could not load profit data. It might be corrupted.",
             variant: "destructive",
           });
         }
       }
     };
-    loadProfits('paper');
-    loadProfits('live');
+    loadProfits('paper', 'forexCrypto');
+    loadProfits('live', 'forexCrypto');
+    loadProfits('paper', 'volatility');
+    loadProfits('live', 'volatility');
     setIsLoading(false);
   }, [toast]);
 
-  const handleClaimProfits = (mode: PaperTradingMode) => {
-    const profitsToClaim = mode === 'paper' ? demoProfitsData : realProfitsData;
+  const handleClaimProfits = (mode: PaperTradingMode, category: ProfitCategory) => {
+    let profitsToClaim: ProfitsClaimableType;
+    let setProfitsState: React.Dispatch<React.SetStateAction<ProfitsClaimableType>>;
+    let storageKey: string;
+
+    if (mode === 'paper') {
+        if (category === 'forexCrypto') {
+            profitsToClaim = demoForexCryptoProfits;
+            setProfitsState = setDemoForexCryptoProfits;
+            storageKey = `forexCryptoProfitsClaimable_paper`;
+        } else {
+            profitsToClaim = demoVolatilityProfits;
+            setProfitsState = setDemoVolatilityProfits;
+            storageKey = `volatilityProfitsClaimable_paper`;
+        }
+    } else { // live
+         if (category === 'forexCrypto') {
+            profitsToClaim = realForexCryptoProfits;
+            setProfitsState = setRealForexCryptoProfits;
+            storageKey = `forexCryptoProfitsClaimable_live`;
+        } else {
+            profitsToClaim = realVolatilityProfits;
+            setProfitsState = setRealVolatilityProfits;
+            storageKey = `volatilityProfitsClaimable_live`;
+        }
+    }
     
     toast({
-      title: `${mode === 'paper' ? 'Demo' : 'Real'} Profits Claimed (Simulated)`,
+      title: `${mode === 'paper' ? 'Demo' : 'Real'} ${category === 'forexCrypto' ? 'Forex/Crypto' : 'Volatility'} Profits Claimed (Simulated)`,
       description: `Successfully processed claim for $${profitsToClaim.totalNetProfit.toFixed(2)}. This amount has already been reflected in your ${mode === 'paper' ? 'demo' : 'simulated real'} balance.`,
     });
     
     const initialProfits = { totalNetProfit: 0, tradeCount: 0, winningTrades: 0, losingTrades: 0 };
-    localStorage.setItem(`profitsClaimable_${mode}`, JSON.stringify(initialProfits));
-    if (mode === 'paper') setDemoProfitsData(initialProfits);
-    else setRealProfitsData(initialProfits);
+    localStorage.setItem(storageKey, JSON.stringify(initialProfits));
+    setProfitsState(initialProfits);
   };
   
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
   };
 
-  const renderProfitsContent = (profitsData: ProfitsClaimableType, mode: PaperTradingMode) => (
-    <>
+  const renderProfitsContent = (profitsData: ProfitsClaimableType, mode: PaperTradingMode, category: ProfitCategory) => (
+    <div className="space-y-6">
       <div className="text-center">
-        <p className="text-sm text-muted-foreground">Total Net Profit/Loss ({mode === 'paper' ? 'Demo' : 'Real - Simulated'})</p>
+        <p className="text-sm text-muted-foreground">Total Net Profit/Loss</p>
         <p className={`text-5xl font-bold ${profitsData.totalNetProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
           {formatCurrency(profitsData.totalNetProfit)}
         </p>
@@ -99,16 +144,16 @@ export default function ProfitsClaimablePage() {
       <Button 
         size="lg" 
         className="w-full bg-primary text-primary-foreground hover:bg-primary/90 text-lg"
-        onClick={() => handleClaimProfits(mode)}
+        onClick={() => handleClaimProfits(mode, category)}
         disabled={profitsData.totalNetProfit === 0 && profitsData.tradeCount === 0}
       >
-        {profitsData.totalNetProfit === 0 && profitsData.tradeCount === 0 ? 'No Profits to Claim' : `Claim ${mode === 'paper' ? 'Demo' : 'Real'} Profits`}
+        {profitsData.totalNetProfit === 0 && profitsData.tradeCount === 0 ? 'No Profits to Claim' : `Claim Profits`}
       </Button>
       
       <p className="text-xs text-muted-foreground text-center">
         Note: Claiming profits is a simulated action. Your account balance reflects trade outcomes in real-time.
       </p>
-    </>
+    </div>
   );
 
   if (isLoading) {
@@ -118,6 +163,11 @@ export default function ProfitsClaimablePage() {
       </div>
     );
   }
+  
+  const currentProfitsData = activeAccountType === 'paper' 
+    ? (activeProfitCategory === 'forexCrypto' ? demoForexCryptoProfits : demoVolatilityProfits)
+    : (activeProfitCategory === 'forexCrypto' ? realForexCryptoProfits : realVolatilityProfits);
+
 
   return (
     <div className="container mx-auto py-2">
@@ -127,24 +177,34 @@ export default function ProfitsClaimablePage() {
              <DollarSign className="h-10 w-10 text-accent" />
           </div>
           <CardTitle className="text-3xl">Claimable Profits</CardTitle>
-          <CardDescription>Summary of your automated AI trading session earnings for Demo and Real (Simulated) accounts.</CardDescription>
+          <CardDescription>Summary of your automated AI trading session earnings.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as PaperTradingMode)} className="w-full">
+          <Tabs value={activeAccountType} onValueChange={(value) => setActiveAccountType(value as PaperTradingMode)} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="paper">Demo Account</TabsTrigger>
-              <TabsTrigger value="live">Real Account (Simulated)</TabsTrigger>
+              <TabsTrigger value="paper">Demo Accounts</TabsTrigger>
+              <TabsTrigger value="live">Real Accounts (Simulated)</TabsTrigger>
             </TabsList>
-            <TabsContent value="paper" className="mt-6 space-y-6">
-              {renderProfitsContent(demoProfitsData, 'paper')}
-            </TabsContent>
-            <TabsContent value="live" className="mt-6 space-y-6">
-              {renderProfitsContent(realProfitsData, 'live')}
-               <div className="flex items-center gap-2 p-3 bg-yellow-100 border border-yellow-300 rounded-md text-yellow-700 text-sm">
-                <Info className="h-5 w-5" />
-                <span>Real account activity is simulated. No real funds are involved.</span>
-              </div>
-            </TabsContent>
+             <TabsContent value={activeAccountType} className="mt-4">
+                <Tabs value={activeProfitCategory} onValueChange={(value) => setActiveProfitCategory(value as ProfitCategory)} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="forexCrypto"><TrendingUp className="mr-2 h-4 w-4"/> Forex/Crypto/Commodity</TabsTrigger>
+                        <TabsTrigger value="volatility"><Activity className="mr-2 h-4 w-4"/> Volatility Indices</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="forexCrypto" className="mt-6">
+                        {renderProfitsContent(activeAccountType === 'paper' ? demoForexCryptoProfits : realForexCryptoProfits, activeAccountType, 'forexCrypto')}
+                    </TabsContent>
+                    <TabsContent value="volatility" className="mt-6">
+                        {renderProfitsContent(activeAccountType === 'paper' ? demoVolatilityProfits : realVolatilityProfits, activeAccountType, 'volatility')}
+                    </TabsContent>
+                </Tabs>
+                {activeAccountType === 'live' && (
+                  <div className="mt-4 flex items-center gap-2 p-3 bg-yellow-100 border border-yellow-300 rounded-md text-yellow-700 text-sm">
+                    <Info className="h-5 w-5 flex-shrink-0" />
+                    <span>Real account activity is simulated. No real funds are involved.</span>
+                  </div>
+                )}
+             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
