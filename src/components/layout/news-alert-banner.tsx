@@ -1,40 +1,88 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getNewsSummaryForBanner } from '@/app/actions/news-actions'; // Import the new server action
+import { getNewsSummaryForBanner } from '@/app/actions/news-actions';
 import { AlertTriangle, Newspaper, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const NEWS_CACHE_KEY = 'derivAiNewsSummaryCache';
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+interface NewsCache {
+  summary: string | null;
+  timestamp: number;
+  error?: string | null;
+}
+
 export function NewsAlertBanner() {
-  const [summary, setSummary] = useState<string | null>(null);
+  const [currentSummary, setCurrentSummary] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [currentError, setCurrentError] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(true);
 
-  useEffect(() => {
-    async function fetchNewsData() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const result = await getNewsSummaryForBanner();
-        if (result.error) {
-          setError(result.error);
-          setSummary(null);
-        } else {
-          setSummary(result.summary);
-        }
-      } catch (err) {
-        console.error("Error in fetchNewsData (NewsAlertBanner):", err);
-        setError("An unexpected error occurred while fetching news.");
-        setSummary(null);
-      } finally {
+  const fetchAndSetNews = async (forceFetch: boolean = false) => {
+    setIsLoading(true);
+    setCurrentError(null);
+
+    if (typeof window === 'undefined') {
         setIsLoading(false);
+        return;
+    }
+
+    const cachedDataString = localStorage.getItem(NEWS_CACHE_KEY);
+    let cachedNews: NewsCache | null = null;
+
+    if (cachedDataString) {
+      try {
+        cachedNews = JSON.parse(cachedDataString);
+      } catch (e) {
+        console.error("Failed to parse news cache:", e);
+        localStorage.removeItem(NEWS_CACHE_KEY); // Clear corrupted cache
       }
     }
 
-    fetchNewsData();
+    if (!forceFetch && cachedNews && (Date.now() - cachedNews.timestamp < CACHE_DURATION)) {
+      setCurrentSummary(cachedNews.summary);
+      setCurrentError(cachedNews.error || null);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const result = await getNewsSummaryForBanner();
+      const newCache: NewsCache = {
+        summary: result.summary,
+        timestamp: Date.now(),
+        error: result.error || null,
+      };
+      localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(newCache));
+      setCurrentSummary(result.summary);
+      setCurrentError(result.error || null);
+    } catch (err) {
+      console.error("Error in fetchAndSetNews (NewsAlertBanner):", err);
+      const errorMessage = "An unexpected error occurred while fetching news.";
+      setCurrentError(errorMessage);
+      setCurrentSummary(null);
+      const errorCache: NewsCache = {
+        summary: null,
+        timestamp: Date.now(),
+        error: errorMessage,
+      };
+      localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(errorCache));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAndSetNews(); // Initial fetch
+
+    const intervalId = setInterval(() => {
+      fetchAndSetNews(true); // Force fetch periodically
+    }, CACHE_DURATION); // Check to refresh roughly every 24 hours
+
+    return () => clearInterval(intervalId);
   }, []);
 
   if (!isVisible) {
@@ -51,19 +99,19 @@ export function NewsAlertBanner() {
         {isLoading && (
           <Skeleton className="h-5 w-3/4 md:w-1/2 bg-muted" />
         )}
-        {error && !isLoading && (
+        {currentError && !isLoading && (
           <div className="flex items-center gap-1 text-destructive text-sm">
             <AlertTriangle className="h-4 w-4" />
-            <span>{error}</span>
+            <span className="truncate max-w-[calc(100vw-150px)]">{currentError}</span>
           </div>
         )}
-        {summary && !isLoading && !error && (
-          <p className="text-sm flex-grow text-center md:text-left">{summary}</p>
+        {currentSummary && !isLoading && !currentError && (
+          <p className="text-sm flex-grow text-center md:text-left truncate max-w-[calc(100vw-150px)]">{currentSummary}</p>
         )}
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+          className="h-6 w-6 text-muted-foreground hover:text-foreground flex-shrink-0"
           onClick={() => setIsVisible(false)}
           aria-label="Dismiss news alert"
         >
@@ -73,4 +121,3 @@ export function NewsAlertBanner() {
     </div>
   );
 }
-

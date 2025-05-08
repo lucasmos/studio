@@ -1,9 +1,13 @@
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { UserCircle, Bell } from 'lucide-react';
+import { UserCircle, Bell, Newspaper, Activity, TrendingUp, AlertCircle } from 'lucide-react';
 import { Logo } from '@/components/icons/logo';
 import Link from 'next/link';
-import { ThemeToggle } from '@/components/ui/theme-toggle'; // Import ThemeToggle
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { NotificationList } from './notification-list'; // New component for notifications
 
 export function Header() {
   return (
@@ -15,10 +19,18 @@ export function Header() {
         </Link>
       </div>
       <div className="flex items-center gap-3">
-        <ThemeToggle /> {/* Add ThemeToggle component here */}
-        <Button variant="ghost" size="icon" aria-label="Notifications">
-          <Bell className="h-5 w-5" />
-        </Button>
+        <ThemeToggle />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label="Notifications">
+              <Bell className="h-5 w-5" />
+              {/* Future: Add a badge here for unread notification count */}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0" align="end">
+            <NotificationList />
+          </PopoverContent>
+        </Popover>
         <Button variant="ghost" size="icon" aria-label="User Profile">
           <UserCircle className="h-6 w-6" />
         </Button>
