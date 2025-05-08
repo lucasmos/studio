@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { BalanceDisplay } from '@/components/dashboard/balance-display';
 import { TradingChart } from '@/components/dashboard/trading-chart';
 import { TradeControls } from '@/components/dashboard/trade-controls';
-import { AiRecommendationCard } from '@/components/dashboard/ai-recommendation-card';
+import { AiRecommendationCard } from '@/components/dashboard/ai-recommendation-card'; // Added import
 import type { TradingInstrument, TradingMode, TradeDuration, AiRecommendation, PaperTradingMode, ActiveAutomatedTrade, ProfitsClaimable, PriceTick, ForexCryptoCommodityInstrumentType } from '@/types';
 import { analyzeMarketSentiment } from '@/ai/flows/analyze-market-sentiment';
 import { explainAiReasoning } from '@/ai/flows/explain-ai-reasoning';
@@ -60,7 +60,12 @@ export default function DashboardPage() {
     const profitsKey = `forexCryptoProfitsClaimable_${paperTradingMode}`;
     const storedProfits = localStorage.getItem(profitsKey);
     if (storedProfits) {
-      setProfitsClaimable(JSON.parse(storedProfits));
+      try {
+        setProfitsClaimable(JSON.parse(storedProfits));
+      } catch (error) {
+        console.error("Error parsing forex/crypto profits from localStorage:", error);
+        setProfitsClaimable({ totalNetProfit: 0, tradeCount: 0, winningTrades: 0, losingTrades: 0 });
+      }
     } else {
       setProfitsClaimable({ totalNetProfit: 0, tradeCount: 0, winningTrades: 0, losingTrades: 0 });
     }
@@ -196,6 +201,7 @@ export default function DashboardPage() {
     setIsAiLoading(true); 
     setIsAutoTradingActive(true);
     setActiveAutomatedTrades([]); 
+    // Reset profits for the new session for this account type and category
     setProfitsClaimable({ totalNetProfit: 0, tradeCount: 0, winningTrades: 0, losingTrades: 0 });
 
 
@@ -223,7 +229,7 @@ export default function DashboardPage() {
         const reason = strategyResult?.overallReasoning || "AI determined no optimal trades at this moment.";
         toast({ title: "AI Auto-Trade Update", description: `AI analysis complete. ${reason}`, duration: 7000 });
         setIsAutoTradingActive(false); 
-        setIsAiLoading(false);
+        // isAiLoading will be set to false in finally
         return;
       }
       
@@ -268,10 +274,12 @@ export default function DashboardPage() {
 
       if (newTrades.length === 0) {
         toast({ title: "AI Auto-Trade Update", description: "No valid trades could be initiated based on AI proposals and current conditions.", duration: 7000 });
-        setIsAutoTradingActive(false);
-      } else {
-        setActiveAutomatedTrades(newTrades);
+        setIsAutoTradingActive(false); // Ensure this is set if no trades are pushed
       }
+      // This needs to be before setIsAiLoading(false) in the finally block
+      // for the useEffect dependency logic to work correctly.
+      setActiveAutomatedTrades(newTrades);
+
 
     } catch (error) {
       toast({ title: "AI Auto-Trade Failed", description: `Could not generate or execute trading strategy: ${(error as Error).message}`, variant: "destructive" });
@@ -279,15 +287,20 @@ export default function DashboardPage() {
     } finally {
       setIsAiLoading(false); 
     }
-  }, [autoTradeTotalStake, tradingMode, toast, paperTradingMode, currentBalance, authStatus, setCurrentBalance]);
+  }, [autoTradeTotalStake, tradingMode, toast, paperTradingMode, currentBalance, authStatus, setCurrentBalance, setProfitsClaimable]);
 
 
   const handleStopAiAutoTrade = () => {
     setIsAutoTradingActive(false); 
+    // Clear intervals immediately
+    tradeIntervals.current.forEach(intervalId => clearInterval(intervalId));
+    tradeIntervals.current.clear();
+
     setActiveAutomatedTrades(prevTrades => 
       prevTrades.map(trade => {
         if (trade.status === 'active') {
-          const pnl = -trade.stake; 
+          const pnl = -trade.stake; // Assume loss if manually stopped early
+          // Defer balance and profit updates to avoid issues during render
           setTimeout(() => {
             setCurrentBalance(prevBal => parseFloat((prevBal + pnl).toFixed(2)));
             setProfitsClaimable(prevProfits => ({
@@ -306,12 +319,17 @@ export default function DashboardPage() {
   };
   
   useEffect(() => {
+    // Condition to stop auto-trading if it was active, AI loading finished, but no trades were initiated.
+    // This covers the case where handleStartAiAutoTrade returns early due to no trades from AI.
+    if (isAutoTradingActive && activeAutomatedTrades.length === 0 && !isAiLoading) {
+        setIsAutoTradingActive(false);
+        // Optionally, add a toast here if not already covered, e.g.,
+        // toast({ title: "AI Auto-Trade Info", description: "AI analysis complete. No trades initiated." });
+    }
+
     if (!isAutoTradingActive || activeAutomatedTrades.length === 0) { 
       tradeIntervals.current.forEach(intervalId => clearInterval(intervalId));
       tradeIntervals.current.clear();
-      if(isAutoTradingActive && activeAutomatedTrades.length === 0 && !isAiLoading){ 
-          setIsAutoTradingActive(false);
-      }
       return; 
     }
     
@@ -331,19 +349,22 @@ export default function DashboardPage() {
               let newCurrentPrice = currentTrade.currentPrice ?? currentTrade.entryPrice;
               const decimalPlaces = getInstrumentDecimalPlaces(currentTrade.instrument);
 
+              // Simulate price change
               const priceChangeFactor = (Math.random() - 0.5) * (decimalPlaces <= 2 ? 0.01 : 0.00010); 
               newCurrentPrice += priceChangeFactor;
               newCurrentPrice = parseFloat(newCurrentPrice.toFixed(decimalPlaces));
 
+              // Check stop-loss
               if (currentTrade.action === 'CALL' && newCurrentPrice <= currentTrade.stopLossPrice) {
                 newStatus = 'lost_stoploss'; pnl = -currentTrade.stake;
               } else if (currentTrade.action === 'PUT' && newCurrentPrice >= currentTrade.stopLossPrice) {
                 newStatus = 'lost_stoploss'; pnl = -currentTrade.stake;
               }
 
+              // Check duration expiry
               if (newStatus === 'active' && Date.now() >= currentTrade.startTime + currentTrade.durationSeconds * 1000) {
-                const isWin = Math.random() < 0.70; 
-                if (isWin) { newStatus = 'won'; pnl = currentTrade.stake * 0.85; }
+                const isWin = Math.random() < 0.70; // Simulate 70% win rate for individual trade outcome
+                if (isWin) { newStatus = 'won'; pnl = currentTrade.stake * 0.85; } // Example profit
                 else { newStatus = 'lost_duration'; pnl = -currentTrade.stake; }
               }
               
@@ -351,7 +372,7 @@ export default function DashboardPage() {
                 clearInterval(tradeIntervals.current.get(trade.id)!);
                 tradeIntervals.current.delete(trade.id);
                 
-                setTimeout(() => {
+                setTimeout(() => { // Defer state updates to avoid React update during render errors
                   setCurrentBalance(prevBal => parseFloat((prevBal + pnl).toFixed(2)));
                   setProfitsClaimable(prevProfits => ({
                     totalNetProfit: prevProfits.totalNetProfit + pnl,
@@ -390,7 +411,7 @@ export default function DashboardPage() {
       tradeIntervals.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAutomatedTrades, isAutoTradingActive, paperTradingMode, isAiLoading]); 
+  }, [activeAutomatedTrades, isAutoTradingActive, paperTradingMode]); // Removed isAiLoading from dependencies to prevent premature clear of intervals
 
 
   return (
@@ -452,6 +473,26 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           )}
+           {isAutoTradingActive && activeAutomatedTrades.length === 0 && !isAiLoading && (
+             <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle>AI Auto-Trading ({paperTradingMode === 'live' ? 'Real - Simulated' : 'Demo'})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground text-center py-4">AI analysis complete. No suitable trades found at this moment.</p>
+                </CardContent>
+             </Card>
+           )}
+            {isAutoTradingActive && isAiLoading && (
+             <Card className="shadow-lg">
+                <CardHeader>
+                    <CardTitle>AI Auto-Trading ({paperTradingMode === 'live' ? 'Real - Simulated' : 'Demo'})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground text-center py-4">AI is analyzing markets and preparing trades...</p>
+                </CardContent>
+             </Card>
+           )}
         </div>
 
         <div className="lg:col-span-1 space-y-6">
@@ -487,3 +528,5 @@ export default function DashboardPage() {
 if (typeof window !== 'undefined' && !(window as any).uuidv4) {
   (window as any).uuidv4 = uuidv4;
 }
+
+

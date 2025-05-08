@@ -35,10 +35,13 @@ export function SidebarContentComponent() {
 
   const handleMenuClick = () => {
     if (isMobile) {
-      setOpenMobile(false);
-    } else if (open) { 
-      // setOpen(false); // Removed: This was causing the sidebar to always collapse on desktop menu click.
-                       // Desktop sidebar collapse/expand should be managed by its dedicated trigger or by resizing.
+      setOpenMobile(false); // Closes the sheet overlay on mobile
+    } else {
+      // On desktop, if the sidebar is expanded (not just icon state),
+      // collapse it to its icon state.
+      if (open) {
+        setOpen(false);
+      }
     }
   };
 
@@ -221,3 +224,4 @@ export function SidebarContentComponent() {
     </Sidebar>
   );
 }
+
