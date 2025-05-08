@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import type { TradingInstrument, PriceTick } from '@/types';
-import { getTicks } from '@/services/deriv'; // Import the service
+import { getTicks } from '@/services/deriv'; 
 import { Skeleton } from '@/components/ui/skeleton';
 import { getInstrumentDecimalPlaces } from '@/lib/utils';
 
@@ -23,7 +23,8 @@ interface TradingChartProps {
   onInstrumentChange: (instrument: TradingInstrument) => void;
 }
 
-function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
+// Renamed and Exported for use in MT5 Page and potentially elsewhere
+export function SingleInstrumentChartDisplay({ instrument }: { instrument: TradingInstrument }) {
   const [data, setData] = useState<PriceTick[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,30 +34,34 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
     let isActive = true; 
 
     const fetchTicksData = async () => {
+      if (!isActive) return; // Prevent fetching if component unmounted during async operation
       setIsLoading(true);
       setError(null);
       try {
         const ticks = await getTicks(instrument);
-        if (isActive) {
+        if (isActive) { // Check again before setting state
           setData(ticks);
         }
       } catch (err) {
         console.error(`Failed to fetch ticks for ${instrument}:`, err);
-        if (isActive) {
+        if (isActive) { // Check again before setting state
           setError(`Failed to load data for ${instrument}.`);
           setData([]); 
         }
       } finally {
-        if (isActive) {
+        if (isActive) { // Check again before setting state
           setIsLoading(false);
         }
       }
     };
 
-    fetchTicksData();
+    fetchTicksData(); // Initial fetch
+
+    const intervalId = setInterval(fetchTicksData, 30000); // Refresh every 30 seconds
 
     return () => {
-      isActive = false; 
+      isActive = false; // Mark as inactive on unmount
+      clearInterval(intervalId); // Clear interval on unmount
     };
   }, [instrument]); 
 
@@ -69,7 +74,7 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
 
   if (isLoading) {
     return (
-      <div className="aspect-video h-[400px] w-full flex items-center justify-center">
+      <div className="aspect-video h-full w-full flex items-center justify-center"> 
         <Skeleton className="h-full w-full" />
       </div>
     );
@@ -77,7 +82,7 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
 
   if (error) {
     return (
-      <div className="aspect-video h-[400px] w-full flex items-center justify-center text-destructive">
+      <div className="aspect-video h-full w-full flex items-center justify-center text-destructive"> 
         <p>{error}</p>
       </div>
     );
@@ -85,7 +90,7 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
   
   if (formattedData.length === 0) {
     return (
-       <div className="aspect-video h-[400px] w-full flex items-center justify-center text-muted-foreground">
+       <div className="aspect-video h-full w-full flex items-center justify-center text-muted-foreground"> 
         <p>No trading data available for {instrument} at the moment.</p>
       </div>
     )
@@ -93,7 +98,7 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
 
 
   return (
-    <ChartContainer config={chartConfig} className="aspect-video h-[400px] w-full">
+    <ChartContainer config={chartConfig} className="aspect-video h-full w-full"> 
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={formattedData}
@@ -140,7 +145,7 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
 
 
 export function TradingChart({ instrument, onInstrumentChange }: TradingChartProps) {
-  const instruments: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD']; // SOL/USD removed
+  const instruments: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD'];
 
   return (
     <Card className="shadow-lg col-span-1 md:col-span-2">
@@ -150,14 +155,15 @@ export function TradingChart({ instrument, onInstrumentChange }: TradingChartPro
       </CardHeader>
       <CardContent>
         <Tabs value={instrument} onValueChange={(value) => onInstrumentChange(value as TradingInstrument)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 mb-4"> {/* Adjusted grid-cols */}
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 mb-4"> 
             {instruments.map((inst) => (
               <TabsTrigger key={inst} value={inst}>{inst}</TabsTrigger>
             ))}
           </TabsList>
           {instruments.map((inst) => (
             <TabsContent key={inst} value={inst}>
-              <InstrumentChart instrument={inst} />
+              {/* Use the exported chart display component here */}
+              <SingleInstrumentChartDisplay instrument={inst} /> 
             </TabsContent>
           ))}
         </Tabs>
@@ -165,4 +171,3 @@ export function TradingChart({ instrument, onInstrumentChange }: TradingChartPro
     </Card>
   );
 }
-

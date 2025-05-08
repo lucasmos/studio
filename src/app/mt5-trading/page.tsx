@@ -18,8 +18,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Lightbulb, Settings2, Info, AlertTriangle, CheckCircle, XCircle, MinusCircle, Clock, Briefcase, UserCheck, RefreshCwIcon } from 'lucide-react';
+import { TrendingUp, TrendingDown, Lightbulb, Settings2, Info, AlertTriangle, CheckCircle, XCircle, MinusCircle, Clock, Briefcase, UserCheck, RefreshCwIcon, BarChart2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SingleInstrumentChartDisplay } from '@/components/dashboard/trading-chart'; // Import the chart display component
+import { Separator } from '@/components/ui/separator';
 
 const HOLDING_PERIODS: MT5HoldingPeriod[] = ['1H', '4H', '1D', '1W'];
 const INSTRUMENTS: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD'];
@@ -43,7 +45,7 @@ export default function MT5TradingPage() {
   const [manualStopLoss, setManualStopLoss] = useState<string>('');
 
   const [activeTrades, setActiveTrades] = useState<MT5TradeOrder[]>([]);
-  const [pendingTrades, setPendingTrades] = useState<MT5TradeOrder[]>([]); // Kept for future use
+  const [pendingTrades, setPendingTrades] = useState<MT5TradeOrder[]>([]);
   const [closedTrades, setClosedTrades] = useState<ClosedMT5Trade[]>([]);
 
   const currentBalance = paperTradingMode === 'paper' ? paperBalance : liveBalance;
@@ -54,8 +56,8 @@ export default function MT5TradingPage() {
         setPriceLoading(true);
         setAiAnalysisLoading(true);
     }
-    setAiAnalysis(null); // Clear previous AI analysis
-    setCurrentPrice(null); // Clear previous price
+    setAiAnalysis(null); 
+    setCurrentPrice(null);
 
     try {
       const ticks = await getTicks(instrument);
@@ -149,7 +151,7 @@ export default function MT5TradingPage() {
             toast({title: "Invalid SL for BUY", description: "Stop Loss must be below current price for a BUY order.", variant: "destructive"});
             return;
         }
-    } else { // SELL
+    } else { 
         if (tpPrice >= currentPrice) {
             toast({title: "Invalid TP for SELL", description: "Take Profit must be below current price for a SELL order.", variant: "destructive"});
             return;
@@ -189,7 +191,6 @@ export default function MT5TradingPage() {
 
           let newCurrentPrice = trade.currentPrice ?? trade.entryPrice;
           const decimalPlaces = getInstrumentDecimalPlaces(trade.instrument);
-          // Simulate small price fluctuations
           const priceChangeFactor = (Math.random() - 0.5) * (decimalPlaces <= 2 ? 0.005 : 0.00005);
           newCurrentPrice += priceChangeFactor;
           newCurrentPrice = parseFloat(newCurrentPrice.toFixed(decimalPlaces));
@@ -200,7 +201,7 @@ export default function MT5TradingPage() {
           let currentPnl: number;
           if (trade.direction === 'BUY') {
             currentPnl = (newCurrentPrice - trade.entryPrice) / trade.entryPrice * trade.investment;
-          } else { // SELL
+          } else { 
             currentPnl = (trade.entryPrice - newCurrentPrice) / trade.entryPrice * trade.investment;
           }
           currentPnl = parseFloat(currentPnl.toFixed(2));
@@ -239,12 +240,10 @@ export default function MT5TradingPage() {
               currentPrice: newCurrentPrice, 
               closeReason,
             };
-            setClosedTrades(prevClosed => [closedTrade, ...prevClosed].slice(0, 50)); // Keep last 50 closed trades
+            setClosedTrades(prevClosed => [closedTrade, ...prevClosed].slice(0, 50)); 
             
-            // Adjust balance: add back investment, then add/subtract final PNL
             setCurrentBalance(prevBal => parseFloat((prevBal + trade.investment + finalPnlForClosure).toFixed(2)));
             
-            // Defer toast to avoid issues during React render cycle
             setTimeout(() => toast({
               title: `MT5 Trade Closed (${paperTradingMode})`,
               description: `${trade.instrument} ${trade.direction} closed. Reason: ${closeReason}. P/L: $${finalPnlForClosure.toFixed(2)}`,
@@ -259,7 +258,8 @@ export default function MT5TradingPage() {
     }, 1000); 
 
     return () => clearInterval(interval);
-  }, [paperTradingMode, setCurrentBalance, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paperTradingMode, setCurrentBalance, toast]); // Removed setCurrentBalance, activeTrades from dependency
 
   const getStatusBadge = (status: MT5TradeStatus) => {
     switch (status) {
@@ -293,248 +293,256 @@ export default function MT5TradingPage() {
 
   return (
     <div className="container mx-auto py-2 space-y-6">
-      <Card className="shadow-lg">
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2"><Settings2 className="h-7 w-7 text-primary"/> MT5 Style Trading</CardTitle>
-            <div className="flex items-center gap-1 text-sm">
-              <AccountIcon className={`h-4 w-4 ${paperTradingMode === 'live' ? 'text-green-500' : 'text-blue-500'}`} />
-              {paperTradingMode === 'paper' ? 'Demo' : 'Real (Simulated)'} Balance: 
-              <span className="font-semibold">${currentBalance.toFixed(2)}</span>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Column 1: Trade Setup */}
-          <div className="md:col-span-1 space-y-4">
-            <Card>
-              <CardHeader><CardTitle className="text-base">Trade Setup</CardTitle></CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div>
-                  <Label htmlFor="mt5-instrument">Instrument</Label>
-                  <Select value={selectedInstrument} onValueChange={(val) => setSelectedInstrument(val as TradingInstrument)}>
-                    <SelectTrigger id="mt5-instrument" className="mt-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {INSTRUMENTS.map(inst => <SelectItem key={inst} value={inst}>{inst}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                 <div>
-                  <Label htmlFor="mt5-account-mode">Account Type</Label>
-                  <Select value={paperTradingMode} onValueChange={(val) => setPaperTradingMode(val as PaperTradingMode)}>
-                    <SelectTrigger id="mt5-account-mode" className="mt-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="paper">Demo Account</SelectItem>
-                      <SelectItem value="live">Real Account (Simulated)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="mt5-investment">Investment ($)</Label>
-                  <Input id="mt5-investment" type="number" value={investmentAmount} onChange={e => setInvestmentAmount(e.target.value)} placeholder="e.g., 100" className="mt-1" />
-                  {parseFloat(investmentAmount) > currentBalance && (
-                    <p className="text-xs text-destructive mt-1">Exceeds balance.</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="mt5-holding-period">Max Holding Period</Label>
-                  <Select value={selectedHoldingPeriod} onValueChange={(val) => setSelectedHoldingPeriod(val as MT5HoldingPeriod)}>
-                    <SelectTrigger id="mt5-holding-period" className="mt-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {HOLDING_PERIODS.map(period => <SelectItem key={period} value={period}>{period}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="mt5-trading-mode">AI Risk Mode (for suggestions)</Label>
-                  <Select value={tradingMode} onValueChange={(val) => setTradingMode(val as TradingMode)}>
-                    <SelectTrigger id="mt5-trading-mode" className="mt-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="conservative">Conservative</SelectItem>
-                      <SelectItem value="balanced">Balanced</SelectItem>
-                      <SelectItem value="aggressive">Aggressive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={() => fetchPriceAndAnalysis(selectedInstrument, true)} className="w-full mt-2" disabled={priceLoading || aiAnalysisLoading}>
-                  <RefreshCwIcon className={`mr-2 h-4 w-4 ${ (priceLoading || aiAnalysisLoading) ? 'animate-spin' : ''}`}/>
-                  { (priceLoading || aiAnalysisLoading) ? 'Analyzing...' : 'Refresh Analysis'}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+       <h1 className="text-3xl font-bold text-foreground">MT5 Style Trading</h1>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Chart */}
+        <div className="lg:col-span-2">
+          <Card className="shadow-lg h-full">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><BarChart2 className="h-6 w-6 text-primary"/> Market Chart: {selectedInstrument}</CardTitle>
+              <CardDescription>Live price data for {selectedInstrument}</CardDescription>
+            </CardHeader>
+            <CardContent className="h-[400px] md:h-[500px]">
+              <SingleInstrumentChartDisplay instrument={selectedInstrument} />
+            </CardContent>
+          </Card>
+        </div>
 
-          {/* Column 2: AI Insights & Execution */}
-          <div className="md:col-span-2 space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5 text-accent" /> AI Insights & Trade Execution
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  Current Price ({selectedInstrument}): 
-                  {priceLoading ? <Skeleton className="h-4 w-20 inline-block ml-1" /> : (currentPrice ? <span className="font-semibold"> {formatPrice(currentPrice, selectedInstrument)}</span> : ' N/A')}
+        {/* Right Column: Trade Controls */}
+        <div className="lg:col-span-1 space-y-4">
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Settings2 className="h-6 w-6 text-primary"/>Trade Terminal</CardTitle>
+              <div className="flex items-center gap-1 text-sm mt-1">
+                <AccountIcon className={`h-4 w-4 ${paperTradingMode === 'live' ? 'text-green-500' : 'text-blue-500'}`} />
+                {paperTradingMode === 'paper' ? 'Demo' : 'Real (Simulated)'} Balance: 
+                <span className="font-semibold">${currentBalance.toFixed(2)}</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div>
+                <Label htmlFor="mt5-account-mode">Account Type</Label>
+                <Select value={paperTradingMode} onValueChange={(val) => setPaperTradingMode(val as PaperTradingMode)}>
+                  <SelectTrigger id="mt5-account-mode" className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="paper">Demo Account</SelectItem>
+                    <SelectItem value="live">Real Account (Simulated)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="mt5-instrument">Instrument</Label>
+                <Select value={selectedInstrument} onValueChange={(val) => setSelectedInstrument(val as TradingInstrument)}>
+                  <SelectTrigger id="mt5-instrument" className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {INSTRUMENTS.map(inst => <SelectItem key={inst} value={inst}>{inst}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="mt5-investment">Investment ($)</Label>
+                <Input id="mt5-investment" type="number" value={investmentAmount} onChange={e => setInvestmentAmount(e.target.value)} placeholder="e.g., 100" className="mt-1" />
+                {parseFloat(investmentAmount) > currentBalance && (
+                  <p className="text-xs text-destructive mt-1">Exceeds balance.</p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="mt5-holding-period">Max Holding Period</Label>
+                <Select value={selectedHoldingPeriod} onValueChange={(val) => setSelectedHoldingPeriod(val as MT5HoldingPeriod)}>
+                  <SelectTrigger id="mt5-holding-period" className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {HOLDING_PERIODS.map(period => <SelectItem key={period} value={period}>{period}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="mt5-trading-mode">AI Risk Mode (for suggestions)</Label>
+                <Select value={tradingMode} onValueChange={(val) => setTradingMode(val as TradingMode)}>
+                  <SelectTrigger id="mt5-trading-mode" className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="conservative">Conservative</SelectItem>
+                    <SelectItem value="balanced">Balanced</SelectItem>
+                    <SelectItem value="aggressive">Aggressive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={() => fetchPriceAndAnalysis(selectedInstrument, true)} className="w-full mt-2" disabled={priceLoading || aiAnalysisLoading}>
+                <RefreshCwIcon className={`mr-2 h-4 w-4 ${ (priceLoading || aiAnalysisLoading) ? 'animate-spin' : ''}`}/>
+                { (priceLoading || aiAnalysisLoading) ? 'Analyzing...' : 'Refresh Analysis'}
+              </Button>
+
+              <Separator className="my-3"/>
+
+              <div className="text-sm">
+                <CardDescription className="mb-1">
+                    Current Price ({selectedInstrument}): 
+                    {priceLoading ? <Skeleton className="h-4 w-20 inline-block ml-1" /> : (currentPrice ? <span className="font-semibold"> {formatPrice(currentPrice, selectedInstrument)}</span> : ' N/A')}
                 </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
                 {aiAnalysisLoading && (
-                  <div className="space-y-2 p-3 bg-muted/30 rounded-md">
+                    <div className="space-y-2 p-3 bg-muted/30 rounded-md">
                     <Skeleton className="h-5 w-3/4" />
                     <Skeleton className="h-4 w-1/2" />
                     <Skeleton className="h-4 w-full" />
                     <Skeleton className="h-4 w-2/3" />
-                  </div>
+                    </div>
                 )}
                 {aiAnalysis && !aiAnalysisLoading && (
-                  <div className="space-y-1 p-3 bg-muted/30 rounded-md text-xs">
+                    <div className="space-y-1 p-3 bg-muted/30 rounded-md text-xs">
                     <div className="flex items-center gap-2">
-                      <strong>AI Potential Direction:</strong>
-                      <Badge variant={aiAnalysis.potentialDirection === 'UP' ? 'default' : aiAnalysis.potentialDirection === 'DOWN' ? 'destructive' : 'secondary'} 
-                             className={`${aiAnalysis.potentialDirection === 'UP' ? "bg-green-500 text-white" : aiAnalysis.potentialDirection === 'DOWN' ? "bg-red-500 text-white" : ""} `}>
+                        <strong>AI Potential Direction:</strong>
+                        <Badge variant={aiAnalysis.potentialDirection === 'UP' ? 'default' : aiAnalysis.potentialDirection === 'DOWN' ? 'destructive' : 'secondary'} 
+                                className={`font-semibold ${aiAnalysis.potentialDirection === 'UP' ? "bg-green-500 text-white" : aiAnalysis.potentialDirection === 'DOWN' ? "bg-red-500 text-white" : "bg-gray-400 text-white"} `}>
                         {aiAnalysis.potentialDirection}
-                      </Badge>
+                        </Badge>
                     </div>
                     <p><strong>AI Suggested TP:</strong> {formatPrice(aiAnalysis.suggestedTakeProfit, selectedInstrument)}</p>
                     <p><strong>AI Suggested SL:</strong> {formatPrice(aiAnalysis.suggestedStopLoss, selectedInstrument)}</p>
                     <p className="italic mt-1"><strong>AI Commentary:</strong> {aiAnalysis.aiCommentary}</p>
-                  </div>
+                    </div>
                 )}
                 {!aiAnalysis && !aiAnalysisLoading && (
-                  <p className="text-xs text-muted-foreground text-center py-2">Click "Refresh Analysis" for AI suggestions.</p>
+                    <p className="text-xs text-muted-foreground text-center py-2">Click "Refresh Analysis" for AI suggestions.</p>
                 )}
+              </div>
+              
+              <Separator className="my-3"/>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="mt5-manual-tp">Take Profit Price</Label>
+                  <Input 
+                    id="mt5-manual-tp" 
+                    type="number" 
+                    value={manualTakeProfit} 
+                    onChange={e => setManualTakeProfit(e.target.value)} 
+                    placeholder={aiAnalysis?.suggestedTakeProfit && aiAnalysis.suggestedTakeProfit !== 0 ? `AI: ${formatPrice(aiAnalysis.suggestedTakeProfit, selectedInstrument)}` : "Enter TP"}
+                    step={getInstrumentDecimalPlaces(selectedInstrument) <= 2 ? "0.01" : "0.00001"}
+                    className="mt-1 h-9"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="mt5-manual-sl">Stop Loss Price</Label>
+                  <Input 
+                    id="mt5-manual-sl" 
+                    type="number" 
+                    value={manualStopLoss} 
+                    onChange={e => setManualStopLoss(e.target.value)} 
+                    placeholder={aiAnalysis?.suggestedStopLoss && aiAnalysis.suggestedStopLoss !== 0 ? `AI: ${formatPrice(aiAnalysis.suggestedStopLoss, selectedInstrument)}` : "Enter SL"}
+                    step={getInstrumentDecimalPlaces(selectedInstrument) <= 2 ? "0.01" : "0.00001"}
+                    className="mt-1 h-9"
+                  />
+                </div>
+              </div>
+              
+              {(aiAnalysis && (aiAnalysis.suggestedTakeProfit === 0 || aiAnalysis.suggestedStopLoss === 0) && !manualTakeProfit && !manualStopLoss) && (
+                  <p className="text-xs text-orange-600 flex items-center gap-1 mt-1"><AlertTriangle className="h-3 w-3"/> AI could not determine valid TP/SL. Manual input required.</p>
+              )}
+              
+              <div className="flex gap-3 pt-2">
+                <Button 
+                  onClick={() => handlePlaceTrade('BUY')} 
+                  className="bg-green-500 hover:bg-green-600 text-white flex-1 py-3 text-base"
+                  disabled={isTradeExecutionDisabled}
+                >
+                  <TrendingUp className="mr-2 h-5 w-5"/> BUY / Long
+                </Button>
+                <Button 
+                  onClick={() => handlePlaceTrade('SELL')} 
+                  className="bg-red-500 hover:bg-red-600 text-white flex-1 py-3 text-base"
+                  disabled={isTradeExecutionDisabled}
+                >
+                  <TrendingDown className="mr-2 h-5 w-5"/> SELL / Short
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <div>
-                    <Label htmlFor="mt5-manual-tp">Take Profit Price</Label>
-                    <Input 
-                      id="mt5-manual-tp" 
-                      type="number" 
-                      value={manualTakeProfit} 
-                      onChange={e => setManualTakeProfit(e.target.value)} 
-                      placeholder={aiAnalysis?.suggestedTakeProfit && aiAnalysis.suggestedTakeProfit !== 0 ? `AI: ${formatPrice(aiAnalysis.suggestedTakeProfit, selectedInstrument)}` : "Enter TP"}
-                      step={getInstrumentDecimalPlaces(selectedInstrument) <= 2 ? "0.01" : "0.00001"}
-                      className="mt-1 h-9"
-                    />
+      {/* Bottom section: Trades List (Tabs) */}
+      <div className="w-full">
+        <Tabs defaultValue="active" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="active">Active Trades ({activeTrades.length})</TabsTrigger>
+            <TabsTrigger value="pending" disabled>Pending Orders ({pendingTrades.length})</TabsTrigger>
+            <TabsTrigger value="closed">Closed Trades ({closedTrades.length})</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="active">
+            <Card className="shadow-md">
+              <CardHeader><CardTitle className="text-lg">Active MT5 Trades</CardTitle></CardHeader>
+              <CardContent className="text-sm">
+                {activeTrades.length === 0 ? <p className="text-muted-foreground">No active trades.</p> : (
+                  <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Instrument</TableHead><TableHead>Dir.</TableHead><TableHead>Invest.</TableHead><TableHead>Entry</TableHead><TableHead>Current</TableHead><TableHead>TP</TableHead><TableHead>SL</TableHead><TableHead>P/L</TableHead><TableHead>Opened</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {activeTrades.map(trade => (
+                        <TableRow key={trade.id}>
+                          <TableCell>{trade.instrument}</TableCell>
+                          <TableCell><Badge variant={trade.direction === 'BUY' ? 'default': 'destructive'} className={`${trade.direction === 'BUY' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'} px-1.5 py-0.5 text-xs`}>{trade.direction}</Badge></TableCell>
+                          <TableCell>${trade.investment.toFixed(2)}</TableCell>
+                          <TableCell>{formatPrice(trade.entryPrice, trade.instrument)}</TableCell>
+                          <TableCell>{formatPrice(trade.currentPrice, trade.instrument)}</TableCell>
+                          <TableCell>{formatPrice(trade.takeProfit, trade.instrument)}</TableCell>
+                          <TableCell>{formatPrice(trade.stopLoss, trade.instrument)}</TableCell>
+                          <TableCell className={trade.pnl != null && trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            ${trade.pnl != null ? trade.pnl.toFixed(2) : '0.00'}
+                          </TableCell>
+                          <TableCell>{new Date(trade.openTime).toLocaleTimeString()}</TableCell>
+                          <TableCell>{getStatusBadge(trade.status)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                   </div>
-                  <div>
-                    <Label htmlFor="mt5-manual-sl">Stop Loss Price</Label>
-                    <Input 
-                      id="mt5-manual-sl" 
-                      type="number" 
-                      value={manualStopLoss} 
-                      onChange={e => setManualStopLoss(e.target.value)} 
-                      placeholder={aiAnalysis?.suggestedStopLoss && aiAnalysis.suggestedStopLoss !== 0 ? `AI: ${formatPrice(aiAnalysis.suggestedStopLoss, selectedInstrument)}` : "Enter SL"}
-                      step={getInstrumentDecimalPlaces(selectedInstrument) <= 2 ? "0.01" : "0.00001"}
-                      className="mt-1 h-9"
-                    />
-                  </div>
-                </div>
-                
-                {(aiAnalysis && (aiAnalysis.suggestedTakeProfit === 0 || aiAnalysis.suggestedStopLoss === 0) && !manualTakeProfit && !manualStopLoss) && (
-                    <p className="text-xs text-orange-600 flex items-center gap-1 mt-1"><AlertTriangle className="h-3 w-3"/> AI could not determine valid TP/SL. Manual input required.</p>
                 )}
-                
-                <div className="flex gap-3 pt-3">
-                  <Button 
-                    onClick={() => handlePlaceTrade('BUY')} 
-                    className="bg-green-500 hover:bg-green-600 text-white flex-1 py-3 text-base"
-                    disabled={isTradeExecutionDisabled}
-                  >
-                    <TrendingUp className="mr-2 h-5 w-5"/> BUY / Long
-                  </Button>
-                  <Button 
-                    onClick={() => handlePlaceTrade('SELL')} 
-                    className="bg-red-500 hover:bg-red-600 text-white flex-1 py-3 text-base"
-                    disabled={isTradeExecutionDisabled}
-                  >
-                    <TrendingDown className="mr-2 h-5 w-5"/> SELL / Short
-                  </Button>
-                </div>
               </CardContent>
             </Card>
-          </div>
-        </CardContent>
-      </Card>
+          </TabsContent>
 
-      <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="active">Active Trades ({activeTrades.length})</TabsTrigger>
-          <TabsTrigger value="pending" disabled>Pending Orders ({pendingTrades.length})</TabsTrigger>
-          <TabsTrigger value="closed">Closed Trades ({closedTrades.length})</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="active">
-          <Card className="shadow-md">
-            <CardHeader><CardTitle className="text-lg">Active MT5 Trades</CardTitle></CardHeader>
-            <CardContent className="text-sm">
-              {activeTrades.length === 0 ? <p className="text-muted-foreground">No active trades.</p> : (
-                <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader><TableRow><TableHead>Instrument</TableHead><TableHead>Dir.</TableHead><TableHead>Invest.</TableHead><TableHead>Entry</TableHead><TableHead>Current</TableHead><TableHead>TP</TableHead><TableHead>SL</TableHead><TableHead>P/L</TableHead><TableHead>Opened</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {activeTrades.map(trade => (
-                      <TableRow key={trade.id}>
-                        <TableCell>{trade.instrument}</TableCell>
-                        <TableCell><Badge variant={trade.direction === 'BUY' ? 'default': 'destructive'} className={`${trade.direction === 'BUY' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'} px-1.5 py-0.5 text-xs`}>{trade.direction}</Badge></TableCell>
-                        <TableCell>${trade.investment.toFixed(2)}</TableCell>
-                        <TableCell>{formatPrice(trade.entryPrice, trade.instrument)}</TableCell>
-                        <TableCell>{formatPrice(trade.currentPrice, trade.instrument)}</TableCell>
-                        <TableCell>{formatPrice(trade.takeProfit, trade.instrument)}</TableCell>
-                        <TableCell>{formatPrice(trade.stopLoss, trade.instrument)}</TableCell>
-                        <TableCell className={trade.pnl != null && trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          ${trade.pnl != null ? trade.pnl.toFixed(2) : '0.00'}
-                        </TableCell>
-                        <TableCell>{new Date(trade.openTime).toLocaleTimeString()}</TableCell>
-                        <TableCell>{getStatusBadge(trade.status)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <TabsContent value="pending">
+            <Card className="shadow-md">
+              <CardHeader><CardTitle className="text-lg">Pending MT5 Orders</CardTitle><CardDescription className="text-sm">This feature (e.g., limit/stop orders) is not yet implemented.</CardDescription></CardHeader>
+              <CardContent><p className="text-muted-foreground text-sm">No pending orders.</p></CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="pending">
-          <Card className="shadow-md">
-            <CardHeader><CardTitle className="text-lg">Pending MT5 Orders</CardTitle><CardDescription className="text-sm">This feature (e.g., limit/stop orders) is not yet implemented.</CardDescription></CardHeader>
-            <CardContent><p className="text-muted-foreground text-sm">No pending orders.</p></CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="closed">
-           <Card className="shadow-md">
-            <CardHeader><CardTitle className="text-lg">Closed MT5 Trades</CardTitle></CardHeader>
-            <CardContent className="text-sm">
-              {closedTrades.length === 0 ? <p className="text-muted-foreground">No closed trades yet.</p> : (
-                 <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader><TableRow><TableHead>Instrument</TableHead><TableHead>Dir.</TableHead><TableHead>Invest.</TableHead><TableHead>Entry</TableHead><TableHead>Close Price</TableHead><TableHead>P/L</TableHead><TableHead>Reason</TableHead><TableHead>Closed</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {closedTrades.map(trade => (
-                      <TableRow key={trade.id}>
-                        <TableCell>{trade.instrument}</TableCell>
-                        <TableCell><Badge variant={trade.direction === 'BUY' ? 'default': 'destructive'} className={`${trade.direction === 'BUY' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'} px-1.5 py-0.5 text-xs`}>{trade.direction}</Badge></TableCell>
-                        <TableCell>${trade.investment.toFixed(2)}</TableCell>
-                        <TableCell>{formatPrice(trade.entryPrice, trade.instrument)}</TableCell>
-                        <TableCell>{formatPrice(trade.currentPrice, trade.instrument)}</TableCell>
-                        <TableCell className={trade.pnl != null && trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          ${trade.pnl != null ? trade.pnl.toFixed(2) : 'N/A'}
-                        </TableCell>
-                        <TableCell>{trade.closeReason}</TableCell>
-                        <TableCell>{trade.closeTime ? new Date(trade.closeTime).toLocaleTimeString() : '-'}</TableCell>
-                        <TableCell>{getStatusBadge(trade.status)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="closed">
+            <Card className="shadow-md">
+              <CardHeader><CardTitle className="text-lg">Closed MT5 Trades</CardTitle></CardHeader>
+              <CardContent className="text-sm">
+                {closedTrades.length === 0 ? <p className="text-muted-foreground">No closed trades yet.</p> : (
+                  <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Instrument</TableHead><TableHead>Dir.</TableHead><TableHead>Invest.</TableHead><TableHead>Entry</TableHead><TableHead>Close Price</TableHead><TableHead>P/L</TableHead><TableHead>Reason</TableHead><TableHead>Closed</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {closedTrades.map(trade => (
+                        <TableRow key={trade.id}>
+                          <TableCell>{trade.instrument}</TableCell>
+                          <TableCell><Badge variant={trade.direction === 'BUY' ? 'default': 'destructive'} className={`${trade.direction === 'BUY' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'} px-1.5 py-0.5 text-xs`}>{trade.direction}</Badge></TableCell>
+                          <TableCell>${trade.investment.toFixed(2)}</TableCell>
+                          <TableCell>{formatPrice(trade.entryPrice, trade.instrument)}</TableCell>
+                          <TableCell>{formatPrice(trade.currentPrice, trade.instrument)}</TableCell>
+                          <TableCell className={trade.pnl != null && trade.pnl >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            ${trade.pnl != null ? trade.pnl.toFixed(2) : 'N/A'}
+                          </TableCell>
+                          <TableCell>{trade.closeReason}</TableCell>
+                          <TableCell>{trade.closeTime ? new Date(trade.closeTime).toLocaleTimeString() : '-'}</TableCell>
+                          <TableCell>{getStatusBadge(trade.status)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+       
        <div className="mt-4 p-4 bg-muted/30 rounded-lg text-xs text-muted-foreground">
             <h4 className="font-semibold text-sm mb-1 flex items-center gap-1"><Info className="h-4 w-4"/>Important Notes:</h4>
             <ul className="list-disc list-inside space-y-1">
