@@ -28,7 +28,7 @@ const ForexCryptoCommodityInstrumentEnum = z.nativeEnum({
 
 
 const AutomatedTradingStrategyInputSchema = z.object({
-  totalStake: z.number().positive().describe('Total amount available for trading in this session (Forex, Crypto, Commodities).'),
+  totalStake: z.number().min(1).describe('Total amount available for trading in this session (Forex, Crypto, Commodities). Must be at least 1.'),
   instruments: z.array(ForexCryptoCommodityInstrumentEnum).describe('List of available Forex, Crypto, or Commodity trading instruments.'),
   tradingMode: z.enum(['conservative', 'balanced', 'aggressive']).describe('The user-defined trading risk mode.'),
   instrumentTicks: z.record(ForexCryptoCommodityInstrumentEnum, z.array(PriceTickSchema))
@@ -38,8 +38,8 @@ const AutomatedTradingStrategyInputSchema = z.object({
 const AutomatedTradeProposalSchema = z.object({
   instrument: ForexCryptoCommodityInstrumentEnum.describe('The trading instrument for this trade.'),
   action: z.enum(['CALL', 'PUT']).describe('The trade direction (CALL for price up, PUT for price down).'),
-  stake: z.number().positive().min(0.01).describe('The amount of stake apportioned to this specific trade. Must be a positive value, minimum 0.01.'),
-  durationSeconds: z.number().int().positive().min(1).describe('The duration of the trade in seconds (e.g., 30, 60, 300). Must be a positive integer, minimum 1.'),
+  stake: z.number().min(0.01).describe('The amount of stake apportioned to this specific trade. Must be a positive value, minimum 0.01.'),
+  durationSeconds: z.number().int().min(1).describe('The duration of the trade in seconds (e.g., 30, 60, 300). Must be a positive integer, minimum 1.'),
   reasoning: z.string().describe('Brief reasoning for this specific trade proposal.'),
 });
 
@@ -60,7 +60,7 @@ const prompt = ai.definePrompt({
   prompt: `You are an expert AI trading strategist for Forex, Cryptocurrencies, and Commodities. Your goal is to devise a set of trades to maximize profit based on the user's total stake, preferred instruments, trading mode, and recent price data.
 You MUST aim for a minimum 70% win rate across the proposed trades. Prioritize high-probability setups.
 
-User's Total Stake for this session: {{{totalStake}}}
+User's Total Stake for this session: {{{totalStake}}} (Must be at least 1)
 Available Instruments (Forex/Crypto/Commodities): {{#each instruments}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 Trading Mode: {{{tradingMode}}}
 
@@ -150,3 +150,4 @@ const automatedTradingStrategyFlow = ai.defineFlow(
     return output;
   }
 );
+

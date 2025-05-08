@@ -29,7 +29,7 @@ const VolatilityInstrumentEnum = z.nativeEnum({
 
 
 const VolatilityTradingStrategyInputSchema = z.object({
-  totalStake: z.number().positive().describe('Total amount available for trading volatility indices in this session.'),
+  totalStake: z.number().min(1).describe('Total amount available for trading volatility indices in this session. Must be at least 1.'),
   instruments: z.array(VolatilityInstrumentEnum).describe('List of available volatility trading instruments.'),
   tradingMode: z.enum(['conservative', 'balanced', 'aggressive']).describe('The user-defined trading risk mode.'),
   instrumentTicks: z.record(VolatilityInstrumentEnum, z.array(PriceTickSchema))
@@ -61,7 +61,7 @@ const prompt = ai.definePrompt({
   prompt: `You are an expert AI trading strategist specializing in Volatility Indices. Your goal is to devise a set of trades to maximize profit based on the user's total stake, preferred instruments, trading mode, and recent price data for these indices.
 You MUST aim for a minimum 70% win rate across the proposed trades. Prioritize high-probability setups.
 
-User's Total Stake for this session: {{{totalStake}}}
+User's Total Stake for this session: {{{totalStake}}} (Must be at least 1)
 Available Volatility Instruments: {{#each instruments}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 Trading Mode: {{{tradingMode}}}
 
