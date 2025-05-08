@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -21,8 +22,9 @@ interface TradeControlsProps {
   stakeAmount: number;
   onStakeAmountChange: (amount: number) => void;
   onExecuteTrade: (action: 'CALL' | 'PUT') => void;
-  onGetAiRecommendation: () => void;
-  isAiLoading: boolean;
+  onGetAiRecommendation?: () => void; // Make optional if needed, but likely required
+  isFetchingManualRecommendation: boolean; // Loading state for manual AI recommendation
+  isPreparingAutoTrades: boolean; // Loading state for auto-trade preparation
   autoTradeTotalStake: number;
   onAutoTradeTotalStakeChange: (amount: number) => void;
   onStartAiAutoTrade: () => void;
@@ -44,8 +46,9 @@ export function TradeControls({
   stakeAmount,
   onStakeAmountChange,
   onExecuteTrade,
-  onGetAiRecommendation,
-  isAiLoading,
+  onGetAiRecommendation, // Keep this prop
+  isFetchingManualRecommendation, // Use this for manual AI button
+  isPreparingAutoTrades, // Use this for auto-trade button and disabling controls
   autoTradeTotalStake,
   onAutoTradeTotalStakeChange,
   onStartAiAutoTrade,
@@ -53,8 +56,8 @@ export function TradeControls({
   isAutoTradingActive,
   disableManualControls = false,
   currentBalance,
-  supportedInstrumentsForManualAi,
-  currentSelectedInstrument,
+  supportedInstrumentsForManualAi, 
+  currentSelectedInstrument, 
 }: TradeControlsProps) {
   const tradingModes: TradingMode[] = ['conservative', 'balanced', 'aggressive'];
   const tradeDurations: TradeDuration[] = ['30s', '1m', '5m', '15m', '30m'];
@@ -81,8 +84,9 @@ export function TradeControls({
     onPaperTradingModeChange(isRealAccount ? 'live' : 'paper');
   };
 
-  const isManualTradeDisabled = stakeAmount <= 0 || disableManualControls || isAiLoading || stakeAmount > currentBalance;
-  const isManualAiRecommendationDisabled = isAiLoading || disableManualControls || !supportedInstrumentsForManualAi.includes(currentSelectedInstrument as ForexCryptoCommodityInstrumentType);
+  const isAnyAiLoading = isFetchingManualRecommendation || isPreparingAutoTrades;
+  const isManualTradeDisabled = stakeAmount <= 0 || disableManualControls || isAutoTradingActive || isAnyAiLoading || stakeAmount > currentBalance;
+  const isManualAiRecommendationDisabled = isAnyAiLoading || disableManualControls || !supportedInstrumentsForManualAi.includes(currentSelectedInstrument as ForexCryptoCommodityInstrumentType);
 
   return (
     <Card className="shadow-lg">
@@ -98,7 +102,7 @@ export function TradeControls({
               id="account-type-switch"
               checked={paperTradingMode === 'live'} 
               onCheckedChange={handleAccountTypeChange}
-              disabled={isAutoTradingActive || isAiLoading} 
+              disabled={isAutoTradingActive || isAnyAiLoading} 
               aria-label="Account Type Switch"
             />
             <Label htmlFor="account-type-switch" className="text-sm font-medium flex items-center">
@@ -111,7 +115,7 @@ export function TradeControls({
           </div>
            <Badge variant={paperTradingMode === 'live' ? "destructive" : "default"} className={paperTradingMode === 'live' ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}>
             {paperTradingMode === 'live' ? 'REAL' : 'DEMO'}
-          </Badge>
+           </Badge>
         </div>
 
 
@@ -165,14 +169,16 @@ export function TradeControls({
                 <p className="text-xs text-destructive mt-1">Stake exceeds available balance.</p>
               )}
             </div>
-             <Button
+            
+            {/* Added back AI Recommendation Button */}
+            <Button
               onClick={onGetAiRecommendation}
               className="w-full bg-gradient-to-r from-primary to-purple-600 text-primary-foreground hover:opacity-90 transition-opacity"
               disabled={isManualAiRecommendationDisabled}
               title={!supportedInstrumentsForManualAi.includes(currentSelectedInstrument as ForexCryptoCommodityInstrumentType) ? `AI for ${currentSelectedInstrument} on Volatility page.` : "Get AI Recommendation"}
             >
               <Bot className="mr-2 h-5 w-5" />
-              {isAiLoading && !isAutoTradingActive ? 'Analyzing...' : 'Get Manual AI Recommendation'}
+              {isFetchingManualRecommendation ? 'Analyzing...' : 'Get Manual AI Recommendation'}
             </Button>
 
             <div className="grid grid-cols-2 gap-4">
@@ -216,10 +222,10 @@ export function TradeControls({
               placeholder="Total for session"
               className="w-full pl-8"
               min="10" 
-              disabled={isAutoTradingActive || isAiLoading}
+              disabled={isAutoTradingActive || isAnyAiLoading}
             />
           </div>
-          {autoTradeTotalStake > currentBalance && !isAutoTradingActive && !isAiLoading && (
+          {autoTradeTotalStake > currentBalance && !isAutoTradingActive && !isAnyAiLoading && (
              <p className="text-xs text-destructive mt-1">Auto-trade stake exceeds available balance.</p>
           )}
         </div>
@@ -228,7 +234,7 @@ export function TradeControls({
           <Button
             onClick={onStopAiAutoTrade}
             className="w-full bg-red-600 hover:bg-red-700 text-primary-foreground"
-            disabled={isAiLoading && !isAutoTradingActive} 
+            disabled={isPreparingAutoTrades} // Disable stopping only while initially preparing
           >
             <Square className="mr-2 h-5 w-5" />
             Stop AI Auto-Trading
@@ -237,10 +243,10 @@ export function TradeControls({
           <Button
             onClick={onStartAiAutoTrade}
             className="w-full bg-blue-600 hover:bg-blue-700 text-primary-foreground"
-            disabled={isAiLoading || autoTradeTotalStake <=0 || autoTradeTotalStake > currentBalance}
+            disabled={isAnyAiLoading || autoTradeTotalStake <=0 || autoTradeTotalStake > currentBalance}
           >
             <Play className="mr-2 h-5 w-5" />
-            {isAiLoading && isAutoTradingActive ? 'Initializing AI Trades...' : 'Start AI Auto-Trading (Forex/Crypto/Commodities)'}
+            {isPreparingAutoTrades ? 'Initializing AI Trades...' : 'Start AI Auto-Trading (Forex/Crypto/Commodities)'}
           </Button>
         )}
         
@@ -252,3 +258,4 @@ export function TradeControls({
     </Card>
   );
 }
+

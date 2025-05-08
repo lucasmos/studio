@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { BalanceDisplay } from '@/components/dashboard/balance-display';
-// TradeControls not directly used for Volatility, simplified controls are in this page.
-import type { VolatilityInstrumentType, TradingMode, PaperTradingMode, ActiveAutomatedVolatilityTrade, ProfitsClaimable, PriceTick } from '@/types';
+import { TradingChart } from '@/components/dashboard/trading-chart'; // Import TradingChart
+import type { VolatilityInstrumentType, TradingMode, PaperTradingMode, ActiveAutomatedVolatilityTrade, ProfitsClaimable, PriceTick, TradingInstrument } from '@/types';
 import { generateVolatilityTradingStrategy } from '@/ai/flows/volatility-trading-strategy-flow';
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -36,6 +37,7 @@ export default function VolatilityTradingPage() {
     setLiveBalance 
   } = useAuth();
   
+  const [currentVolatilityInstrument, setCurrentVolatilityInstrument] = useState<VolatilityInstrumentType>(VOLATILITY_INSTRUMENTS[0]);
   const [tradingMode, setTradingMode] = useState<TradingMode>('balanced');
   const [paperTradingMode, setPaperTradingMode] = useState<PaperTradingMode>('paper'); 
   
@@ -56,7 +58,6 @@ export default function VolatilityTradingPage() {
 
   const { toast } = useToast();
 
-  // Load and save profitsClaimable from/to localStorage
   useEffect(() => {
     const profitsKey = `volatilityProfitsClaimable_${paperTradingMode}`;
     const storedProfits = localStorage.getItem(profitsKey);
@@ -76,6 +77,12 @@ export default function VolatilityTradingPage() {
     const profitsKey = `volatilityProfitsClaimable_${paperTradingMode}`;
     localStorage.setItem(profitsKey, JSON.stringify(profitsClaimable));
   }, [profitsClaimable, paperTradingMode]);
+
+  const handleInstrumentChange = (instrument: TradingInstrument) => {
+    if (VOLATILITY_INSTRUMENTS.includes(instrument as VolatilityInstrumentType)) {
+      setCurrentVolatilityInstrument(instrument as VolatilityInstrumentType);
+    }
+  };
 
   const handleAutoStakeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(event.target.value);
@@ -103,7 +110,6 @@ export default function VolatilityTradingPage() {
     setIsAiLoading(true); 
     setIsAutoTradingActive(true);
     setActiveAutomatedTrades([]); 
-    // Reset profits for the new session for this account type and category
     setProfitsClaimable({ totalNetProfit: 0, tradeCount: 0, winningTrades: 0, losingTrades: 0 });
 
 
@@ -131,7 +137,6 @@ export default function VolatilityTradingPage() {
         const reason = strategyResult?.overallReasoning || "AI determined no optimal trades at this moment for volatility indices.";
         toast({ title: "AI Auto-Trade Update (Volatility)", description: `AI analysis complete. ${reason}`, duration: 7000 });
         setIsAutoTradingActive(false); 
-        // isAiLoading will be set to false in finally
         return;
       }
       
@@ -176,10 +181,8 @@ export default function VolatilityTradingPage() {
 
       if (newTrades.length === 0) {
         toast({ title: "AI Auto-Trade Update (Volatility)", description: "No valid volatility trades could be initiated based on AI proposals and current data.", duration: 7000 });
-        setIsAutoTradingActive(false); // Ensure this is set if no trades are pushed
+        setIsAutoTradingActive(false);
       }
-      // This needs to be before setIsAiLoading(false) in the finally block
-      // for the useEffect dependency logic to work correctly.
       setActiveAutomatedTrades(newTrades);
 
 
@@ -193,15 +196,13 @@ export default function VolatilityTradingPage() {
 
   const handleStopAiAutoTrade = () => {
     setIsAutoTradingActive(false); 
-    // Clear intervals immediately
     tradeIntervals.current.forEach(intervalId => clearInterval(intervalId));
     tradeIntervals.current.clear();
 
     setActiveAutomatedTrades(prevTrades => 
       prevTrades.map(trade => {
         if (trade.status === 'active') {
-          const pnl = -trade.stake; // Assume loss if manually stopped early
-          // Defer balance and profit updates to avoid issues during render
+          const pnl = -trade.stake; 
           setTimeout(() => {
             setCurrentBalance(prevBal => parseFloat((prevBal + pnl).toFixed(2)));
             setProfitsClaimable(prevProfits => ({
@@ -220,10 +221,8 @@ export default function VolatilityTradingPage() {
   };
   
   useEffect(() => {
-    // Condition to stop auto-trading if it was active, AI loading finished, but no trades were initiated.
     if (isAutoTradingActive && activeAutomatedTrades.length === 0 && !isAiLoading) {
       setIsAutoTradingActive(false);
-      // Optionally, toast that AI found no trades if not already covered by handleStartAiAutoTrade's toasts
     }
 
     if (!isAutoTradingActive || activeAutomatedTrades.length === 0) { 
@@ -248,7 +247,6 @@ export default function VolatilityTradingPage() {
               let newCurrentPrice = currentTrade.currentPrice ?? currentTrade.entryPrice;
               const decimalPlaces = getInstrumentDecimalPlaces(currentTrade.instrument);
 
-              // Simplified volatility factor: price changes as percentage
               const priceChangeFactor = (Math.random() - 0.5) * (currentTrade.instrument.includes("100") ? 0.005 : 0.0005); 
               newCurrentPrice += priceChangeFactor * newCurrentPrice; 
               newCurrentPrice = parseFloat(newCurrentPrice.toFixed(decimalPlaces));
@@ -260,8 +258,8 @@ export default function VolatilityTradingPage() {
               }
 
               if (newStatus === 'active' && Date.now() >= currentTrade.startTime + currentTrade.durationSeconds * 1000) {
-                const isWin = Math.random() < 0.70; // Simulate 70% win rate for individual trade outcome
-                if (isWin) { newStatus = 'won'; pnl = currentTrade.stake * 0.85; } // Example profit
+                const isWin = Math.random() < 0.70; 
+                if (isWin) { newStatus = 'won'; pnl = currentTrade.stake * 0.85; } 
                 else { newStatus = 'lost_duration'; pnl = -currentTrade.stake; }
               }
               
@@ -269,7 +267,7 @@ export default function VolatilityTradingPage() {
                 clearInterval(tradeIntervals.current.get(trade.id)!);
                 tradeIntervals.current.delete(trade.id);
                 
-                setTimeout(() => { // Defer state updates
+                setTimeout(() => { 
                   setCurrentBalance(prevBal => parseFloat((prevBal + pnl).toFixed(2)));
                   setProfitsClaimable(prevProfits => ({
                     totalNetProfit: prevProfits.totalNetProfit + pnl,
@@ -298,7 +296,7 @@ export default function VolatilityTradingPage() {
             }
             return updatedTrades;
           });
-        }, 1000); // Volatility indices update faster (simulated)
+        }, 1000); 
         tradeIntervals.current.set(trade.id, intervalId);
       }
     });
@@ -307,8 +305,8 @@ export default function VolatilityTradingPage() {
       tradeIntervals.current.forEach(intervalId => clearInterval(intervalId));
       tradeIntervals.current.clear();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAutomatedTrades, isAutoTradingActive, paperTradingMode]); // Removed isAiLoading from deps to avoid premature stop of simulation setup
+  }, [activeAutomatedTrades, isAutoTradingActive, paperTradingMode, setCurrentBalance, setProfitsClaimable, toast, isAiLoading]);
+
 
   return (
     <div className="container mx-auto py-2 space-y-6">
@@ -367,7 +365,7 @@ export default function VolatilityTradingPage() {
                 <Button
                     onClick={handleStopAiAutoTrade}
                     className="w-full bg-red-600 hover:bg-red-700 text-primary-foreground"
-                    disabled={isAiLoading && !isAutoTradingActive} // Should be false if auto-trading is active but AI still loading initial trades
+                    disabled={isAiLoading && !isAutoTradingActive} 
                 >
                     <Square className="mr-2 h-5 w-5" />
                     Stop AI Volatility Trading
@@ -389,7 +387,14 @@ export default function VolatilityTradingPage() {
           </Card>
         </div>
 
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 space-y-6">
+            {/* Volatility Chart */}
+             <TradingChart 
+                instrument={currentVolatilityInstrument}
+                onInstrumentChange={handleInstrumentChange}
+                instrumentsToShow={VOLATILITY_INSTRUMENTS}
+             />
+            {/* Active Trades Table */}
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle>Active AI Volatility Trades ({paperTradingMode === 'live' ? 'Real - Simulated' : 'Demo'})</CardTitle>
@@ -455,4 +460,3 @@ export default function VolatilityTradingPage() {
 if (typeof window !== 'undefined' && !(window as any).uuidv4) {
   (window as any).uuidv4 = uuidv4;
 }
-
