@@ -5,8 +5,7 @@ import type { TradingInstrument } from '@/types';
 const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=74597'; // Updated app_id
 
 // Read the token from environment variables. NEXT_PUBLIC_ prefix makes it available to the browser.
-const DERIV_API_TOKEN_FROM_ENV = process.env.NEXT_PUBLIC_DERIV_API_TOKEN;
-const PLACEHOLDER_ENV_TOKEN_MESSAGE = "PLACEHOLDER_ENTER_YOUR_REAL_DERIV_API_TOKEN_HERE";
+const DERIV_API_TOKEN = "TXQW98UdRF92bo0";
 
 
 /**
@@ -73,15 +72,11 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
 
     ws.onopen = () => {
       console.log(`Deriv WebSocket connected for ${derivSymbol}.`);
-      if (DERIV_API_TOKEN_FROM_ENV && DERIV_API_TOKEN_FROM_ENV !== PLACEHOLDER_ENV_TOKEN_MESSAGE) {
-        console.log('Attempting to authorize with token from .env.');
-        ws.send(JSON.stringify({ authorize: DERIV_API_TOKEN_FROM_ENV }));
+      if (DERIV_API_TOKEN) {
+        console.log('Attempting to authorize with API token.');
+        ws.send(JSON.stringify({ authorize: DERIV_API_TOKEN }));
       } else {
-        if (DERIV_API_TOKEN_FROM_ENV === PLACEHOLDER_ENV_TOKEN_MESSAGE) {
-             console.warn(`Attempting to authorize with a placeholder token: "${PLACEHOLDER_ENV_TOKEN_MESSAGE}". This will likely fail. Please set a valid NEXT_PUBLIC_DERIV_API_TOKEN in your .env file.`);
-        } else {
-            console.warn('NEXT_PUBLIC_DERIV_API_TOKEN is not set in the .env file. Attempting to fetch public data. This may fail for protected resources like tick history.');
-        }
+        console.warn('Deriv API token is not available. Attempting to fetch public data. This may fail for protected resources like tick history.');
         // For some public data, authorization might not be needed, but for ticks_history it often is.
         // We can proceed to sendTicksRequest, and if auth is required, Deriv will send an error.
         sendTicksRequest();
@@ -96,7 +91,7 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
           end: 'latest',
           count: 50, 
           style: 'ticks',
-          subscribe: 0, 
+          // subscribe: 0, // Removed: subscribe is not a valid param for ticks_history
         })
       );
       requestSent = true;
@@ -165,7 +160,10 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
       // Check if it's a DOMException to avoid overly broad error messages for network issues.
       if (errorEvent instanceof ErrorEvent && errorEvent.error instanceof DOMException) {
         reject(new Error(`Deriv WebSocket connection error for ${derivSymbol}: ${errorEvent.message}. Check network and API endpoint.`));
-      } else {
+      } else if (errorEvent instanceof Event && errorEvent.type === 'error') { // Generic error event
+        reject(new Error(`Deriv WebSocket connection error for ${derivSymbol}. Check network and API endpoint.`));
+      }
+      else {
         reject(new Error(`Deriv WebSocket error for ${derivSymbol}. See browser console for details.`));
       }
       if (ws.readyState !== ws.CLOSED && ws.readyState !== ws.CLOSING) {
@@ -216,3 +214,4 @@ export async function getOrderBookDepth(instrument: TradingInstrument): Promise<
     ],
   };
 }
+
