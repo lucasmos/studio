@@ -32,7 +32,7 @@ export interface AutomatedTradeProposal { // For binary options auto-trading
   reasoning: string;
 }
 
-export interface ActiveAutomatedTrade extends Omit<AutomatedTradeProposal, 'suggestedStopLossPips'> { // For binary options auto-trading
+export interface ActiveAutomatedTrade extends AutomatedTradeProposal { // For binary options auto-trading
   id: string;
   entryPrice: number;
   stopLossPrice: number; 
@@ -63,11 +63,20 @@ export interface AutomatedTradingStrategyOutput {
 }
 
 // Authentication types
+export type AuthMethod = 'email' | 'google' | 'deriv' | 'demo' | null;
+
 export interface UserInfo {
   id: string;
   name: string;
-  email: string;
-  derivAccountId?: string; 
+  email?: string; // Email might not be present for all auth methods initially (e.g. demo)
+  authMethod: AuthMethod;
+  // Specific Deriv account details, populated if authMethod is 'deriv'
+  // or if a user links their Deriv account later (future feature)
+  derivRealAccountId?: string; 
+  derivDemoAccountId?: string;
+  // Balances associated with Deriv accounts - these would ideally be fetched from Deriv
+  derivRealBalance?: number;
+  derivDemoBalance?: number;
 }
 
 export type AuthStatus = 'authenticated' | 'unauthenticated' | 'pending';
@@ -118,4 +127,3 @@ export interface MT5AccountSummary {
     freeMargin: number;
     marginLevelPercentage: number;
 }
-
