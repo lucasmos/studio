@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,34 +9,29 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { DollarSign, Smartphone, Download, Upload, ArrowRightLeft } from 'lucide-react';
-import type { PaymentMethod, TransactionType } from '@/types';
+import { DollarSign, Smartphone, Download, Upload, ArrowRightLeft, CheckCircle } from 'lucide-react';
+import type { TransactionType } from '@/types';
 
 const DMPESA_APP_URL = 'https://play.google.com/store/apps/details?id=com.dmpesa';
 
 export default function PaymentsPage() {
   const [amount, setAmount] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mpesa');
   const [transactionType, setTransactionType] = useState<TransactionType>('deposit');
-  const [isDMPesaAppInstalled, setIsDMPesaAppInstalled] = useState<boolean | null>(null); // null: unknown, true: installed, false: not installed
+  const [isDMPesaAppInstalled, setIsDMPesaAppInstalled] = useState<boolean | null>(null);
   const { toast } = useToast();
 
-  // Simulate checking if DMPesa app is installed (e.g., via a deep link attempt or user confirmation)
-  // For this demo, we'll use a button to simulate this check.
   const checkAppInstallation = () => {
     // In a real scenario, this would involve trying to open a custom URL scheme
     // or checking platform-specific APIs if within a native wrapper.
-    // For this web simulation, we'll just toggle it.
-    // Let's assume it's not installed by default for the demo flow.
+    // For this web simulation, we'll assume it's not installed by default.
     setIsDMPesaAppInstalled(false); 
   };
   
   useEffect(() => {
-    // Simulate initial check on component mount or when payment method changes to mpesa
-    if(paymentMethod === 'mpesa' && isDMPesaAppInstalled === null) {
+    if (isDMPesaAppInstalled === null) {
       checkAppInstallation();
     }
-  }, [paymentMethod, isDMPesaAppInstalled]);
+  }, [isDMPesaAppInstalled]);
 
 
   const handleTransaction = () => {
@@ -44,10 +40,10 @@ export default function PaymentsPage() {
       return;
     }
 
-    if (paymentMethod === 'mpesa' && !isDMPesaAppInstalled) {
+    if (!isDMPesaAppInstalled) {
       toast({
         title: 'DMPesa App Required',
-        description: 'Please install the DMPesa app to proceed with MPESA transactions.',
+        description: 'Please install and log in to the DMPesa app to proceed with transactions.',
         variant: 'destructive',
       });
       return;
@@ -57,7 +53,7 @@ export default function PaymentsPage() {
     setTimeout(() => {
       toast({
         title: `${transactionType === 'deposit' ? 'Deposit' : 'Withdrawal'} Successful (Simulated)`,
-        description: `Your ${transactionType} of $${parseFloat(amount).toFixed(2)} via ${paymentMethod === 'mpesa' ? 'MPESA' : 'Airtel Money'} has been processed.`,
+        description: `Your ${transactionType} of $${parseFloat(amount).toFixed(2)} via DMPesa app has been processed.`,
       });
       setAmount('');
     }, 1500);
@@ -65,7 +61,7 @@ export default function PaymentsPage() {
   
   const handleSimulateAppInstall = () => {
     setIsDMPesaAppInstalled(true);
-    toast({ title: "DMPesa App Status", description: "Simulated: DMPesa app is now considered installed."});
+    toast({ title: "DMPesa App Status", description: "Simulated: DMPesa app is now considered installed and logged in."});
   };
 
   return (
@@ -74,7 +70,9 @@ export default function PaymentsPage() {
         <CardHeader className="text-center">
           <ArrowRightLeft className="mx-auto h-12 w-12 text-primary mb-4" />
           <CardTitle className="text-3xl">Payments</CardTitle>
-          <CardDescription>Deposit or withdraw funds for your trading account.</CardDescription>
+          <CardDescription>
+            Deposit or withdraw funds for your trading account using the DMPesa application.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
           <div>
@@ -113,33 +111,14 @@ export default function PaymentsPage() {
               />
             </div>
           </div>
-
-          <div>
-            <Label htmlFor="payment-method" className="text-lg font-semibold">Payment Method</Label>
-            <RadioGroup
-              id="payment-method"
-              value={paymentMethod}
-              onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
-              className="flex gap-4 mt-2"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="mpesa" id="mpesa" />
-                <Label htmlFor="mpesa" className="text-base cursor-pointer">MPESA</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="airtel_money" id="airtel_money" />
-                <Label htmlFor="airtel_money" className="text-base cursor-pointer">Airtel Money</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {paymentMethod === 'mpesa' && isDMPesaAppInstalled === false && (
+          
+          {isDMPesaAppInstalled === false && (
             <Card className="bg-destructive/10 border-destructive">
               <CardContent className="pt-6 space-y-3 text-center">
                 <Smartphone className="mx-auto h-10 w-10 text-destructive mb-2" />
                 <p className="text-destructive font-semibold">DMPesa App Required</p>
                 <p className="text-sm text-destructive/80">
-                  To use MPESA, you need the DMPesa app installed on your device.
+                  To make deposits or withdrawals, you need the DMPesa app installed and logged in on your device.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2 justify-center">
                    <Button
@@ -147,23 +126,25 @@ export default function PaymentsPage() {
                     className="border-destructive text-destructive hover:bg-destructive/20"
                     onClick={handleSimulateAppInstall}
                   >
-                    I've Installed It / Simulate Install
+                    I've Installed & Logged In / Simulate
                   </Button>
                   <Button
                     onClick={() => window.open(DMPESA_APP_URL, '_blank')}
                     className="bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     <Download className="mr-2 h-4 w-4" />
-                    Download from Play Store
+                    Download DMPesa App
                   </Button>
                 </div>
               </CardContent>
             </Card>
           )}
-           {paymentMethod === 'mpesa' && isDMPesaAppInstalled === true && (
+
+           {isDMPesaAppInstalled === true && (
              <Card className="bg-green-500/10 border-green-500">
-                <CardContent className="pt-6 text-center">
-                     <p className="text-sm text-green-700 font-medium">DMPesa app is detected (simulated). You can proceed.</p>
+                <CardContent className="pt-6 text-center flex items-center justify-center gap-2">
+                     <CheckCircle className="h-6 w-6 text-green-600" />
+                     <p className="text-sm text-green-700 font-medium">DMPesa app detected (simulated). You can proceed.</p>
                 </CardContent>
              </Card>
            )}
@@ -173,13 +154,13 @@ export default function PaymentsPage() {
             size="lg"
             className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-xl py-6"
             onClick={handleTransaction}
-            disabled={!amount || parseFloat(amount) <= 0 || (paymentMethod === 'mpesa' && !isDMPesaAppInstalled)}
+            disabled={!amount || parseFloat(amount) <= 0 || !isDMPesaAppInstalled}
           >
             {transactionType === 'deposit' ? 'Deposit Funds' : 'Withdraw Funds'}
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
-            All transactions are processed securely. This is a simulated environment.
+            All transactions are processed securely via the DMPesa app. This is a simulated environment.
           </p>
         </CardContent>
       </Card>

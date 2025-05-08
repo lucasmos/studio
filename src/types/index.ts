@@ -29,7 +29,7 @@ export interface AutomatedTradeProposal {
   instrument: TradingInstrument;
   action: 'CALL' | 'PUT';
   stake: number;
-  durationSeconds: number;
+  durationSeconds: number; // Duration in seconds
   reasoning: string;
 }
 
@@ -75,5 +75,4 @@ export interface UserInfo {
 export type AuthStatus = 'authenticated' | 'unauthenticated' | 'pending';
 
 // Payment types
-export type PaymentMethod = 'mpesa' | 'airtel_money';
 export type TransactionType = 'deposit' | 'withdrawal';
