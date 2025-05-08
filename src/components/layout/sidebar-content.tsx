@@ -14,12 +14,11 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/icons/logo';
-import { LayoutDashboard, History, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, History, Settings, LogOut, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 export function SidebarContentComponent() {
-  // TODO: Replace with actual user data and authentication status
   const isAuthenticated = true; 
   const userName = "Demo User";
   const userEmail = "demo@example.com";
@@ -56,6 +55,18 @@ export function SidebarContentComponent() {
               <Link href="/trade-history">
                 <History />
                 <span>Trade History</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+           <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === '/profits-claimable'}
+              tooltip={{ children: 'Profits Claimable', side: 'right' }}
+            >
+              <Link href="/profits-claimable">
+                <DollarSign />
+                <span>Profits Claimable</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
