@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview AI flow for generating an automated trading strategy.
@@ -25,7 +24,6 @@ const TradingInstrumentEnum = z.nativeEnum({
   BTC_USD: 'BTC/USD',
   XAU_USD: 'XAU/USD', // Gold
   ETH_USD: 'ETH/USD', // Ethereum
-  // SOL_USD: 'SOL/USD' // Solana removed as symbol is invalid
 } as const);
 
 const AutomatedTradingStrategyInputSchema = z.object({
@@ -39,8 +37,8 @@ const AutomatedTradingStrategyInputSchema = z.object({
 const AutomatedTradeProposalSchema = z.object({
   instrument: TradingInstrumentEnum.describe('The trading instrument for this trade.'),
   action: z.enum(['CALL', 'PUT']).describe('The trade direction (CALL for price up, PUT for price down).'),
-  stake: z.number().min(0.01).describe('The amount of stake apportioned to this specific trade. Must be a positive value.'),
-  durationSeconds: z.number().int().positive().describe('The duration of the trade in seconds (e.g., 30, 60, 300). Must be a positive integer.'),
+  stake: z.number().describe('The amount of stake apportioned to this specific trade. Must be a positive value, minimum 0.01.'),
+  durationSeconds: z.number().int().describe('The duration of the trade in seconds (e.g., 30, 60, 300). Must be a positive integer, minimum 1.'),
   reasoning: z.string().describe('Brief reasoning for this specific trade proposal.'),
 });
 
@@ -86,15 +84,15 @@ Your Task:
     *   Aggressive: Higher risk/reward, potentially more volatile instruments, larger stakes if confidence is high. Aim for >=70% win rate, even with higher risk.
 3.  For each instrument you choose to trade:
     *   Determine the trade direction: 'CALL' (price will go up) or 'PUT' (price will go down).
-    *   Recommend a trade duration in SECONDS (e.g., 30, 60, 180, 300). Durations MUST be positive integers representing seconds.
+    *   Recommend a trade duration in SECONDS (e.g., 30, 60, 180, 300). Durations MUST be positive integers representing seconds, with a minimum value of 1.
     *   The system will set a 5% stop-loss. Your reasoning should reflect an understanding of this.
-4.  Apportion the '{{{totalStake}}}' among your chosen trades. The sum of stakes for all proposed trades MUST NOT exceed '{{{totalStake}}}'. Each stake must be a positive value (minimum $0.01).
+4.  Apportion the '{{{totalStake}}}' among your chosen trades. The sum of stakes for all proposed trades MUST NOT exceed '{{{totalStake}}}'. Each stake must be a positive value, with a minimum value of 0.01.
 5.  Provide clear reasoning for each trade proposal and for your overall strategy, explicitly mentioning how it aligns with the 70% win rate target and the 5% stop-loss rule.
 
 Output Format:
 Return a JSON object matching the output schema. Ensure 'tradesToExecute' is an array of trade objects.
-Each trade's 'stake' must be a number (e.g., 10.50).
-Each trade's 'durationSeconds' must be an integer number of seconds (e.g., 30, 60, 300).
+Each trade's 'stake' must be a number (e.g., 10.50) and at least 0.01.
+Each trade's 'durationSeconds' must be an integer number of seconds (e.g., 30, 60, 300) and at least 1.
 
 Begin your response with the JSON object.
 `,
@@ -111,6 +109,20 @@ const automatedTradingStrategyFlow = ai.defineFlow(
     if (!output) {
       throw new Error("AI failed to generate an automated trading strategy.");
     }
+    
+    // Validate and filter AI output for stake and durationSeconds
+    output.tradesToExecute = output.tradesToExecute.filter(trade => {
+      const isStakeValid = typeof trade.stake === 'number' && trade.stake >= 0.01;
+      const isDurationValid = Number.isInteger(trade.durationSeconds) && trade.durationSeconds >= 1;
+
+      if (!isStakeValid) {
+        console.warn(`AI proposed invalid stake ${trade.stake} for ${trade.instrument}. Filtering out trade.`);
+      }
+      if (!isDurationValid) {
+        console.warn(`AI proposed invalid duration ${trade.durationSeconds} for ${trade.instrument}. Filtering out trade.`);
+      }
+      return isStakeValid && isDurationValid;
+    });
     
     let totalProposedStake = output.tradesToExecute.reduce((sum, trade) => sum + trade.stake, 0);
     totalProposedStake = parseFloat(totalProposedStake.toFixed(2));
