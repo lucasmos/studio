@@ -3,18 +3,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend, ResponsiveContainer } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import type { TradingInstrument, PriceTick } from '@/types';
-
-const initialChartData: PriceTick[] = Array.from({ length: 30 }, (_, i) => {
-  const baseTime = new Date();
-  baseTime.setSeconds(baseTime.getSeconds() - (30 - i) * 5); // 5 second intervals
-  return {
-    time: baseTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    price: 1.0750 + (Math.random() - 0.5) * 0.0020,
-  };
-});
+import { getTicks } from '@/services/deriv'; // Import the service
+import { Skeleton } from '@/components/ui/skeleton';
 
 const chartConfig = {
   price: {
@@ -29,30 +22,72 @@ interface TradingChartProps {
 }
 
 function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
-  const [data, setData] = useState<PriceTick[]>(initialChartData);
+  const [data, setData] = useState<PriceTick[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate real-time data updates
-    const intervalId = setInterval(() => {
-      setData(prevData => {
-        const newDataPoint: PriceTick = {
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit'}),
-          price: prevData.length > 0 ? prevData[prevData.length - 1].price + (Math.random() - 0.5) * 0.0005 : 1.0750 + (Math.random() - 0.5) * 0.0010,
-        };
-        const updatedData = [...prevData.slice(1), newDataPoint];
-        return updatedData;
-      });
-    }, 5000); // Update every 5 seconds
+    let isActive = true; // To prevent state updates on unmounted component
 
-    return () => clearInterval(intervalId);
-  }, []);
+    const fetchTicksData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const ticks = await getTicks(instrument);
+        if (isActive) {
+          setData(ticks);
+        }
+      } catch (err) {
+        console.error(`Failed to fetch ticks for ${instrument}:`, err);
+        if (isActive) {
+          setError(`Failed to load data for ${instrument}.`);
+          setData([]); // Clear data on error
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchTicksData();
+
+    return () => {
+      isActive = false; // Cleanup function to set isActive to false when component unmounts
+    };
+  }, [instrument]); // Refetch when instrument changes
 
   const formattedData = useMemo(() => {
     return data.map(tick => ({
-      time: tick.time,
-      price: parseFloat(tick.price.toFixed(4)) // Ensure price is a number and formatted
+      time: tick.time, // Assuming tick.time is already formatted "HH:mm:ss"
+      price: parseFloat(tick.price.toFixed(instrument === 'BTC/USD' ? 2 : 4))
     }));
-  }, [data]);
+  }, [data, instrument]);
+
+  if (isLoading) {
+    return (
+      <div className="aspect-video h-[400px] w-full flex items-center justify-center">
+        <Skeleton className="h-full w-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="aspect-video h-[400px] w-full flex items-center justify-center text-destructive">
+        <p>{error}</p>
+      </div>
+    );
+  }
+  
+  if (formattedData.length === 0) {
+    return (
+       <div className="aspect-video h-[400px] w-full flex items-center justify-center text-muted-foreground">
+        <p>No trading data available for {instrument} at the moment.</p>
+      </div>
+    )
+  }
+
 
   return (
     <ChartContainer config={chartConfig} className="aspect-video h-[400px] w-full">
@@ -66,16 +101,27 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
             dataKey="time" 
             tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
             tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+            // Display fewer ticks if data is dense
+            interval={formattedData.length > 20 ? Math.floor(formattedData.length / 10) : 0}
           />
           <YAxis 
             domain={['auto', 'auto']}
-            tickFormatter={(value) => value.toFixed(4)}
+            tickFormatter={(value) => typeof value === 'number' ? value.toFixed(instrument === 'BTC/USD' ? 2 : 4) : value}
             tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
             tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+            width={80} // Adjust width to prevent label cropping
           />
           <ChartTooltip
-            cursor={false}
-            content={<ChartTooltipContent indicator="line" labelKey="price" />}
+            cursor={true}
+            content={<ChartTooltipContent 
+                        indicator="line" 
+                        labelKey="price" 
+                        formatter={(value, name, props) => {
+                           const price = typeof props.payload?.price === 'number' ? props.payload.price.toFixed(instrument === 'BTC/USD' ? 2 : 4) : 'N/A';
+                           return [`Price: ${price}`, `Time: ${props.payload?.time}`];
+                        }}
+                        hideLabel={true} // Hiding the default label which might just be "Price"
+                     />}
           />
           <Line
             dataKey="price"

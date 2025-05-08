@@ -14,6 +14,7 @@ export interface AiRecommendation {
 }
 
 export interface PriceTick {
-  time: string; // Should be a parsable date string or timestamp
+  epoch: number; // Epoch timestamp in seconds
   price: number;
+  time: string; // Formatted time string for display, e.g., "HH:mm:ss"
 }
