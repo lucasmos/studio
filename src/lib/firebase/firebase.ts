@@ -38,3 +38,4 @@ if (isFirebaseConfigValid()) {
 
 
 export { app, auth, googleProvider, emailProvider, isFirebaseConfigValid as isFirebaseInitialized };
+
