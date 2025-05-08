@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -330,7 +331,10 @@ export default function MT5TradingPage() {
                     )}
                     {aiAnalysis && !aiAnalysisLoading && (
                         <div className="space-y-2 text-sm p-3 bg-muted/50 rounded-md">
-                            <p><strong>Potential Direction:</strong> <Badge variant={aiAnalysis.potentialDirection === 'UP' ? 'default' : aiAnalysis.potentialDirection === 'DOWN' ? 'destructive' : 'secondary'} className={aiAnalysis.potentialDirection === 'UP' ? "bg-green-500" : aiAnalysis.potentialDirection === 'DOWN' ? "bg-red-500" : ""}>{aiAnalysis.potentialDirection}</Badge></p>
+                            <div className="flex items-center gap-2">
+                                <strong>Potential Direction:</strong>
+                                <Badge variant={aiAnalysis.potentialDirection === 'UP' ? 'default' : aiAnalysis.potentialDirection === 'DOWN' ? 'destructive' : 'secondary'} className={aiAnalysis.potentialDirection === 'UP' ? "bg-green-500" : aiAnalysis.potentialDirection === 'DOWN' ? "bg-red-500" : ""}>{aiAnalysis.potentialDirection}</Badge>
+                            </div>
                             <p><strong>Suggested TP:</strong> {formatPrice(aiAnalysis.suggestedTakeProfit, selectedInstrument)}</p>
                             <p><strong>Suggested SL:</strong> {formatPrice(aiAnalysis.suggestedStopLoss, selectedInstrument)}</p>
                             <p className="text-xs italic mt-1"><strong>Commentary:</strong> {aiAnalysis.aiCommentary}</p>
@@ -448,3 +452,4 @@ export default function MT5TradingPage() {
     </div>
   );
 }
+
