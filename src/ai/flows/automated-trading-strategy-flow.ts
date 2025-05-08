@@ -30,9 +30,9 @@ const AutomatedTradingStrategyInputSchema = z.object({
 const AutomatedTradeProposalSchema = z.object({
   instrument: z.nativeEnum({EUR_USD: 'EUR/USD', GBP_USD: 'GBP/USD', BTC_USD: 'BTC/USD'} as const).describe('The trading instrument for this trade.'),
   action: z.enum(['CALL', 'PUT']).describe('The trade direction (CALL for price up, PUT for price down).'),
-  stake: z.number().positive().describe('The amount of stake apportioned to this specific trade.'),
-  durationSeconds: z.number().int().positive().describe('The duration of the trade in seconds (e.g., 30, 60, 300).'),
-  suggestedStopLossPips: z.number().positive().describe('Suggested stop-loss distance in pips/points from the entry price. For Forex (e.g., EUR/USD), 1 pip = 0.0001. For BTC/USD, 1 point could be 1.00. Adjust based on instrument volatility. E.g., 10 pips for EUR/USD, 50 points for BTC/USD.'),
+  stake: z.number().min(0.01).describe('The amount of stake apportioned to this specific trade. Must be a positive value.'),
+  durationSeconds: z.number().int().min(1).describe('The duration of the trade in seconds (e.g., 30, 60, 300). Must be a positive integer.'),
+  suggestedStopLossPips: z.number().min(0.0001).describe('Suggested stop-loss distance in pips/points from the entry price. Must be a positive value. For Forex (e.g., EUR/USD), 1 pip = 0.0001. For BTC/USD, 1 point could be 1.00. Adjust based on instrument volatility. E.g., 10 pips for EUR/USD, 50 points for BTC/USD.'),
   reasoning: z.string().describe('Brief reasoning for this specific trade proposal.'),
 });
 
@@ -77,13 +77,13 @@ Your Task:
     *   Aggressive: Higher risk/reward, potentially more volatile instruments, larger stakes if confidence is high.
 3.  For each instrument you choose to trade:
     *   Determine the trade direction: 'CALL' (price will go up) or 'PUT' (price will go down).
-    *   Recommend a trade duration in seconds (e.g., 30, 60, 180, 300).
-    *   Suggest a stop-loss in pips/points. This is the adverse price movement from entry that should trigger a close. 
+    *   Recommend a trade duration in seconds (e.g., 30, 60, 180, 300). Must be a positive integer.
+    *   Suggest a stop-loss in pips/points. This is the adverse price movement from entry that should trigger a close. Must be a positive value.
         Examples: For EUR/USD, 10 pips is 0.0010. For BTC/USD, 50 points is 50.00.
         The stop-loss should protect capital but allow for normal volatility.
         - Conservative mode might use tighter stop-losses.
         - Aggressive mode might use wider stop-losses.
-4.  Apportion the '{{{totalStake}}}' among your chosen trades. The sum of stakes for all proposed trades MUST NOT exceed '{{{totalStake}}}'.
+4.  Apportion the '{{{totalStake}}}' among your chosen trades. The sum of stakes for all proposed trades MUST NOT exceed '{{{totalStake}}}'. Each stake must be a positive value.
 5.  Provide clear reasoning for each trade proposal and for your overall strategy.
 
 Output Format:
@@ -120,33 +120,24 @@ const automatedTradingStrategyFlow = ai.defineFlow(
         console.warn(`AI proposed total stake ${totalProposedStake} which exceeds available ${input.totalStake}. Scaling down.`);
         const scaleFactor = input.totalStake / totalProposedStake;
         output.tradesToExecute.forEach(trade => {
-            trade.stake = Math.floor(trade.stake * scaleFactor); // Use Math.floor to ensure integer stakes if required by platform
+            trade.stake = Math.floor(trade.stake * scaleFactor * 100) / 100; // Scale and round to 2 decimal places for currency
+            if (trade.stake < 0.01) trade.stake = 0.01; // Ensure minimum stake
         });
-        // Recalculate to confirm, though flooring might leave some dust.
-        const revisedTotalProposedStake = output.tradesToExecute.reduce((sum, trade) => sum + trade.stake, 0);
-        console.log(`Revised total proposed stake: ${revisedTotalProposedStake}`);
+        
+        // Recalculate to confirm
+        let revisedTotalProposedStake = output.tradesToExecute.reduce((sum, trade) => sum + trade.stake, 0);
+        revisedTotalProposedStake = parseFloat(revisedTotalProposedStake.toFixed(2));
+
+
         if (revisedTotalProposedStake > input.totalStake) {
              // Still over after scaling (unlikely with floor, but good to check)
              // Or, one trade might have a minimum stake making scaling problematic
-            console.error("AI over-allocated stake, and scaling failed to correct it sufficiently. Returning empty strategy.");
-            return { tradesToExecute: [], overallReasoning: "AI over-allocated stake, and scaling failed. Please try again with a clearer stake or different parameters."};
+            console.error(`AI over-allocated stake (${revisedTotalProposedStake}), and scaling failed to correct it sufficiently below ${input.totalStake}. Returning empty strategy.`);
+            return { tradesToExecute: [], overallReasoning: `AI over-allocated stake (${revisedTotalProposedStake} vs ${input.totalStake}), and scaling failed. Please try again.`};
         }
+         output.overallReasoning += ` (Note: Stakes were adjusted to fit total budget of ${input.totalStake})`;
     }
 
     return output;
   }
 );
-
-// Helper function to convert duration string (e.g., '5m', '30s') to seconds
-function durationToSeconds(duration: string): number {
-  const match = duration.match(/^(\d+)([smh])$/);
-  if (!match) return 300; // Default to 5m if parse fails
-  const value = parseInt(match[1]);
-  const unit = match[2];
-  switch (unit) {
-    case 's': return value;
-    case 'm': return value * 60;
-    case 'h': return value * 60 * 60;
-    default: return 300;
-  }
-}
