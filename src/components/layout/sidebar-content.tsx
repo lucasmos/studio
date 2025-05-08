@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -21,7 +22,7 @@ import { useAuth } from '@/contexts/auth-context';
 
 export function SidebarContentComponent() {
   const { authStatus, userInfo, logout } = useAuth();
-  const { isMobile, setOpenMobile } = useSidebar(); 
+  const { isMobile, open, setOpen, openMobile, setOpenMobile } = useSidebar(); 
   const pathname = usePathname();
   const router = useRouter();
 
@@ -33,6 +34,8 @@ export function SidebarContentComponent() {
   const handleMenuClick = () => {
     if (isMobile) {
       setOpenMobile(false);
+    } else if (open) { // If on desktop and sidebar is expanded
+      setOpen(false);  // Collapse to icon mode
     }
   };
 
@@ -40,7 +43,7 @@ export function SidebarContentComponent() {
     <Sidebar side="left" variant="sidebar" collapsible="icon">
       <SidebarHeader className="p-4">
         <Link href="/" className="flex items-center gap-2 text-sidebar-primary hover:text-sidebar-primary-foreground">
-          <Logo className="h-8 w-auto text-sidebar-background" />
+          <Logo className="h-8 w-auto text-sidebar-primary" />
         </Link>
       </SidebarHeader>
       <Separator className="bg-sidebar-border" />
@@ -173,3 +176,4 @@ export function SidebarContentComponent() {
     </Sidebar>
   );
 }
+
