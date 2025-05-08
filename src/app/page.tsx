@@ -29,10 +29,6 @@ export default function DashboardPage() {
     setLiveBalance 
   } = useAuth();
   
-  // Removed local balance state, using context now
-  // const [balance, setBalance] = useState(10000); 
-  // const [realBalance, setRealBalance] = useState(500); 
-
   const [currentInstrument, setCurrentInstrument] = useState<TradingInstrument>('EUR/USD');
   const [tradingMode, setTradingMode] = useState<TradingMode>('balanced');
   const [tradeDuration, setTradeDuration] = useState<TradeDuration>('5m');
@@ -89,13 +85,12 @@ export default function DashboardPage() {
         return;
     }
 
-
-    // const tradeId = uuidv4(); // Not used currently for simple manual trades
     const entryPrice = (Math.random() * 10 + 1.05).toFixed(getInstrumentDecimalPlaces(currentInstrument)); 
     console.log(`Executing ${action} trade for ${currentInstrument} with duration ${tradeDuration} and stake ${stakeAmount} in ${tradingMode} mode. Account: ${paperTradingMode}. Entry: ${entryPrice}`);
     
     const potentialProfit = stakeAmount * 0.85; 
 
+    // Simulate trade outcome
     setTimeout(() => {
       const outcome = Math.random() > 0.4 ? "won" : "lost"; 
       const pnl = outcome === "won" ? potentialProfit : -stakeAmount;
@@ -123,6 +118,7 @@ export default function DashboardPage() {
       };
       const sentimentResult = await analyzeMarketSentiment(marketSentimentParams);
       
+      // Simulated technical indicators for reasoning
       const rsi = Math.random() * 100; 
       const macd = (Math.random() - 0.5) * 0.1; 
       const volatility = ['low', 'medium', 'high'][Math.floor(Math.random() * 3)];
@@ -169,7 +165,6 @@ export default function DashboardPage() {
       toast({ title: "Invalid Stake", description: "Please enter a valid total stake for AI trading.", variant: "destructive" });
       return;
     }
-    // Use liveBalance and paperBalance from context
     if (paperTradingMode === 'live' && autoTradeTotalStake > liveBalance) {
         toast({ title: "Insufficient Real Balance", description: `Total stake $${autoTradeTotalStake.toFixed(2)} exceeds real account balance of $${liveBalance.toFixed(2)}.`, variant: "destructive" });
         return;
@@ -303,13 +298,16 @@ export default function DashboardPage() {
         if (trade.status === 'active') {
           console.log(`[AI Auto-Trade] Closing active trade ${trade.id} (${trade.instrument}) due to manual stop.`);
           const pnl = -trade.stake; 
-          setCurrentBalance(prevBal => prevBal + pnl); 
-          setProfitsClaimable(prevProfits => ({
-            totalNetProfit: prevProfits.totalNetProfit + pnl,
-            tradeCount: prevProfits.tradeCount + 1,
-            winningTrades: prevProfits.winningTrades, 
-            losingTrades: prevProfits.losingTrades + 1, 
-          }));
+          // Defer state updates to avoid React update conflicts
+          setTimeout(() => {
+            setCurrentBalance(prevBal => prevBal + pnl); 
+            setProfitsClaimable(prevProfits => ({
+              totalNetProfit: prevProfits.totalNetProfit + pnl,
+              tradeCount: prevProfits.tradeCount + 1,
+              winningTrades: prevProfits.winningTrades, 
+              losingTrades: prevProfits.losingTrades + 1, 
+            }));
+          }, 0);
           return {
             ...trade, 
             status: 'lost_duration', 
@@ -362,10 +360,11 @@ export default function DashboardPage() {
               }
 
               if (newStatus === 'active' && Date.now() >= currentTrade.startTime + currentTrade.durationSeconds * 1000) {
+                // Apply 70% win rate simulation
                 const isWin = Math.random() < 0.70; 
                 if (isWin) {
                   newStatus = 'won';
-                  pnl = currentTrade.stake * 0.85; 
+                  pnl = currentTrade.stake * 0.85; // Example profit margin
                 } else {
                   newStatus = 'lost_duration';
                   pnl = -currentTrade.stake;
@@ -376,15 +375,16 @@ export default function DashboardPage() {
                 clearInterval(tradeIntervals.current.get(trade.id)!);
                 tradeIntervals.current.delete(trade.id);
                 
-                setCurrentBalance(prevBal => prevBal + pnl);
-                setProfitsClaimable(prevProfits => ({
-                  totalNetProfit: prevProfits.totalNetProfit + pnl,
-                  tradeCount: prevProfits.tradeCount + 1,
-                  winningTrades: newStatus === 'won' ? prevProfits.winningTrades + 1 : prevProfits.winningTrades,
-                  losingTrades: (newStatus === 'lost_duration' || newStatus === 'lost_stoploss') ? prevProfits.losingTrades + 1 : prevProfits.losingTrades,
-                }));
-                
+                // Defer state updates to avoid React update conflicts
                 setTimeout(() => {
+                  setCurrentBalance(prevBal => prevBal + pnl);
+                  setProfitsClaimable(prevProfits => ({
+                    totalNetProfit: prevProfits.totalNetProfit + pnl,
+                    tradeCount: prevProfits.tradeCount + 1,
+                    winningTrades: newStatus === 'won' ? prevProfits.winningTrades + 1 : prevProfits.winningTrades,
+                    losingTrades: (newStatus === 'lost_duration' || newStatus === 'lost_stoploss') ? prevProfits.losingTrades + 1 : prevProfits.losingTrades,
+                  }));
+                  
                   toast({
                     title: `Auto-Trade Ended (${paperTradingMode}): ${currentTrade.instrument}`,
                     description: `Status: ${newStatus}, P/L: $${pnl.toFixed(2)}`,
@@ -415,7 +415,8 @@ export default function DashboardPage() {
       tradeIntervals.current.clear();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAutomatedTrades, isAutoTradingActive, paperTradingMode, setCurrentBalance, isAiLoading]); 
+  }, [activeAutomatedTrades, isAutoTradingActive, paperTradingMode, isAiLoading]); 
+  // Removed setCurrentBalance from deps as it's stable and updates are handled in setTimeout
 
 
   return (
