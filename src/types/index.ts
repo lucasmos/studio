@@ -10,7 +10,7 @@ export type TradingMode = 'conservative' | 'balanced' | 'aggressive';
 
 export type TradeDuration = '30s' | '1m' | '5m' | '15m' | '30m';
 
-export type PaperTradingMode = 'paper' | 'live';
+export type PaperTradingMode = 'paper' | 'live'; // 'live' means simulated live trading
 
 export interface AiRecommendation {
   tradeRecommendation: string;
@@ -30,7 +30,6 @@ export interface AutomatedTradeProposal {
   action: 'CALL' | 'PUT';
   stake: number;
   durationSeconds: number;
-  // suggestedStopLossPips is removed. System will apply a fixed 5% stop-loss.
   reasoning: string;
 }
 
@@ -65,3 +64,16 @@ export interface AutomatedTradingStrategyOutput {
   overallReasoning: string;
 }
 
+// Authentication types
+export interface UserInfo {
+  id: string;
+  name: string;
+  email: string;
+  derivAccountId?: string; // Example: CR123456 for real, VRTC123456 for demo
+}
+
+export type AuthStatus = 'authenticated' | 'unauthenticated' | 'pending';
+
+// Payment types
+export type PaymentMethod = 'mpesa' | 'airtel_money';
+export type TransactionType = 'deposit' | 'withdrawal';

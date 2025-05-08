@@ -8,14 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import type { TradingMode, TradeDuration, PaperTradingMode } from '@/types';
-import { TrendingUp, TrendingDown, Bot, DollarSign, Play, Square } from 'lucide-react';
+import { TrendingUp, TrendingDown, Bot, DollarSign, Play, Square, Briefcase, UserCheck } from 'lucide-react'; // Added Briefcase, UserCheck
+import { Badge } from '@/components/ui/badge';
 
 interface TradeControlsProps {
   tradingMode: TradingMode;
   onTradingModeChange: (mode: TradingMode) => void;
   tradeDuration: TradeDuration;
   onTradeDurationChange: (duration: TradeDuration) => void;
-  paperTradingMode: PaperTradingMode;
+  paperTradingMode: PaperTradingMode; // This will now represent 'demo' or 'real' (simulated live)
   onPaperTradingModeChange: (mode: PaperTradingMode) => void;
   stakeAmount: number;
   onStakeAmountChange: (amount: number) => void;
@@ -36,7 +37,7 @@ export function TradeControls({
   onTradingModeChange,
   tradeDuration,
   onTradeDurationChange,
-  paperTradingMode,
+  paperTradingMode, // 'paper' for Demo, 'live' for Real (simulated)
   onPaperTradingModeChange,
   stakeAmount,
   onStakeAmountChange,
@@ -52,7 +53,7 @@ export function TradeControls({
 }: TradeControlsProps) {
   const tradingModes: TradingMode[] = ['conservative', 'balanced', 'aggressive'];
   const tradeDurations: TradeDuration[] = ['30s', '1m', '5m', '15m', '30m'];
-  const paperTradingModes: PaperTradingMode[] = ['paper', 'live'];
+  // paperTradingModes is effectively replaced by the account type switch
 
   const handleStakeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(event.target.value);
@@ -72,6 +73,10 @@ export function TradeControls({
     }
   };
 
+  const handleAccountTypeChange = (isRealAccount: boolean) => {
+    onPaperTradingModeChange(isRealAccount ? 'live' : 'paper');
+  };
+
   return (
     <Card className="shadow-lg">
       <CardHeader>
@@ -79,6 +84,30 @@ export function TradeControls({
         <CardDescription>Configure and execute your trades.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        
+        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="account-type-switch"
+              checked={paperTradingMode === 'live'} // 'live' means Real Account
+              onCheckedChange={handleAccountTypeChange}
+              disabled={isAutoTradingActive || isAiLoading} 
+              aria-label="Account Type Switch"
+            />
+            <Label htmlFor="account-type-switch" className="text-sm font-medium flex items-center">
+              {paperTradingMode === 'live' ? (
+                <><Briefcase className="mr-2 h-4 w-4 text-green-500" /> Real Account (Simulated)</>
+              ) : (
+                <><UserCheck className="mr-2 h-4 w-4 text-blue-500" /> Demo Account</>
+              )}
+            </Label>
+          </div>
+           <Badge variant={paperTradingMode === 'live' ? "destructive" : "default"} className={paperTradingMode === 'live' ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}>
+            {paperTradingMode === 'live' ? 'REAL' : 'DEMO'}
+          </Badge>
+        </div>
+
+
         {/* Manual Trading Section */}
         {!isAutoTradingActive && (
           <>
@@ -165,6 +194,9 @@ export function TradeControls({
         {/* AI Automated Trading Section */}
         <div>
           <Label htmlFor="auto-stake-amount" className="text-sm font-medium text-muted-foreground">AI Auto-Trade Total Stake ($)</Label>
+           <p className="text-xs text-muted-foreground mb-1">
+            AI will apportion this stake across recommended trades for the selected account type ({paperTradingMode === 'live' ? 'Real - Simulated' : 'Demo'}).
+          </p>
           <div className="relative mt-1">
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -174,7 +206,7 @@ export function TradeControls({
               onChange={handleAutoStakeChange}
               placeholder="Total for session"
               className="w-full pl-8"
-              min="10" // Example minimum for auto trading session
+              min="10" 
               disabled={isAutoTradingActive || isAiLoading}
             />
           </div>
@@ -184,7 +216,7 @@ export function TradeControls({
           <Button
             onClick={onStopAiAutoTrade}
             className="w-full bg-red-600 hover:bg-red-700 text-primary-foreground"
-            disabled={isAiLoading}
+            disabled={isAiLoading && !isAutoTradingActive} // Allow stopping if main AI loading elsewhere, but not if this button caused loading
           >
             <Square className="mr-2 h-5 w-5" />
             Stop AI Auto-Trading
@@ -196,24 +228,13 @@ export function TradeControls({
             disabled={isAiLoading || autoTradeTotalStake <=0}
           >
             <Play className="mr-2 h-5 w-5" />
-            {isAiLoading ? 'Initializing AI Trades...' : 'Start AI Auto-Trading'}
+            {isAiLoading && isAutoTradingActive ? 'Initializing AI Trades...' : 'Start AI Auto-Trading'}
           </Button>
         )}
         
-        <div className="flex items-center space-x-2 mt-4">
-          <Switch
-            id="paper-trading-mode"
-            checked={paperTradingMode === 'paper'}
-            onCheckedChange={(checked) => onPaperTradingModeChange(checked ? 'paper' : 'live')}
-            disabled={isAutoTradingActive || isAiLoading}
-          />
-          <Label htmlFor="paper-trading-mode" className="text-sm font-medium">
-            {paperTradingMode === 'paper' ? 'Paper Trading Active' : 'Live Trading Active'}
-          </Label>
-        </div>
-
-         <p className="text-xs text-muted-foreground text-center">
+        <p className="text-xs text-muted-foreground text-center">
           Trading involves significant risk. Past performance is not indicative of future results. AI trading is experimental.
+          Real account trading is simulated.
         </p>
       </CardContent>
     </Card>
