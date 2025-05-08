@@ -212,11 +212,8 @@ export default function MT5TradingPage() {
             };
             setClosedTrades(prevClosed => [closedTrade, ...prevClosed]);
             
-            // Balance adjustment: Investment was already deducted. Add back investment + final PNL.
-            // The PNL difference applied during active trade needs to be accounted for to avoid double counting/subtracting.
-            // The current balance already reflects (Original Balance - Investment + Sum of PNL changes during trade).
-            // So, when closing, we need to add back (Investment + Final PNL) - (Sum of PNL changes during trade).
-            // Easier: the current balance already reflects the *current* PNL. So just add back the investment.
+            // Balance adjustment: Investment was already deducted. Add back investment.
+            // The PNL has been continuously applied, so current balance already reflects it.
             setCurrentBalance(prevBal => parseFloat((prevBal + trade.investment).toFixed(2)));
             
             setTimeout(() => toast({
@@ -230,11 +227,11 @@ export default function MT5TradingPage() {
         });
         return updatedTrades.filter(trade => trade !== null) as MT5TradeOrder[];
       });
-    }, 3000);
+    }, 1000); // Changed interval to 1000ms (1 second)
 
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paperTradingMode, setCurrentBalance]);
+  }, [paperTradingMode, setCurrentBalance]); // Dependencies are intentionally minimal for stable interval behavior with functional updates
 
   const getStatusBadge = (status: MT5TradeStatus) => {
     switch (status) {
@@ -447,7 +444,7 @@ export default function MT5TradingPage() {
                           ${trade.pnl != null ? trade.pnl.toFixed(2) : 'N/A'}
                         </TableCell>
                         <TableCell>{trade.closeReason}</TableCell>
-                        <TableCell>{new Date(trade.closeTime!).toLocaleTimeString()}</TableCell>
+                        <TableCell>{trade.closeTime ? new Date(trade.closeTime).toLocaleTimeString() : '-'}</TableCell>
                         <TableCell>{getStatusBadge(trade.status)}</TableCell>
                       </TableRow>
                     ))}
