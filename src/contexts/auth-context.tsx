@@ -9,6 +9,10 @@ interface AuthContextType {
   userInfo: UserInfo | null;
   login: (user: UserInfo) => void;
   logout: () => void;
+  paperBalance: number;
+  setPaperBalance: React.Dispatch<React.SetStateAction<number>>;
+  liveBalance: number;
+  setLiveBalance: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,6 +20,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('pending');
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [paperBalance, setPaperBalance] = useState<number>(10000); // Default demo balance
+  const [liveBalance, setLiveBalance] = useState<number>(500); // Default simulated real balance
 
   useEffect(() => {
     // Simulate checking auth status from localStorage or an API
@@ -33,6 +39,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setAuthStatus('unauthenticated');
     }
+
+    // Load balances from localStorage if available
+    const storedPaperBalance = localStorage.getItem('derivAiPaperBalance');
+    if (storedPaperBalance) {
+      setPaperBalance(parseFloat(storedPaperBalance));
+    }
+    const storedLiveBalance = localStorage.getItem('derivAiLiveBalance');
+    if (storedLiveBalance) {
+      setLiveBalance(parseFloat(storedLiveBalance));
+    }
   }, []);
 
   const login = useCallback((user: UserInfo) => {
@@ -45,11 +61,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUserInfo(null);
     setAuthStatus('unauthenticated');
     localStorage.removeItem('derivAiUser');
-    // Potentially redirect to login or home page
+    // Optionally reset balances on logout or retain them
+    // localStorage.removeItem('derivAiPaperBalance');
+    // localStorage.removeItem('derivAiLiveBalance');
   }, []);
 
+  // Persist balances to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('derivAiPaperBalance', paperBalance.toString());
+  }, [paperBalance]);
+
+  useEffect(() => {
+    localStorage.setItem('derivAiLiveBalance', liveBalance.toString());
+  }, [liveBalance]);
+
   return (
-    <AuthContext.Provider value={{ authStatus, userInfo, login, logout }}>
+    <AuthContext.Provider 
+      value={{ 
+        authStatus, 
+        userInfo, 
+        login, 
+        logout,
+        paperBalance,
+        setPaperBalance,
+        liveBalance,
+        setLiveBalance
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

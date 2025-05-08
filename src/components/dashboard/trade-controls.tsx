@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import type { TradingMode, TradeDuration, PaperTradingMode } from '@/types';
-import { TrendingUp, TrendingDown, Bot, DollarSign, Play, Square, Briefcase, UserCheck } from 'lucide-react'; // Added Briefcase, UserCheck
+import { TrendingUp, TrendingDown, Bot, DollarSign, Play, Square, Briefcase, UserCheck } from 'lucide-react'; 
 import { Badge } from '@/components/ui/badge';
 
 interface TradeControlsProps {
@@ -16,20 +16,20 @@ interface TradeControlsProps {
   onTradingModeChange: (mode: TradingMode) => void;
   tradeDuration: TradeDuration;
   onTradeDurationChange: (duration: TradeDuration) => void;
-  paperTradingMode: PaperTradingMode; // This will now represent 'demo' or 'real' (simulated live)
+  paperTradingMode: PaperTradingMode; 
   onPaperTradingModeChange: (mode: PaperTradingMode) => void;
   stakeAmount: number;
   onStakeAmountChange: (amount: number) => void;
   onExecuteTrade: (action: 'CALL' | 'PUT') => void;
   onGetAiRecommendation: () => void;
   isAiLoading: boolean;
-  // AI Auto-Trade props
   autoTradeTotalStake: number;
   onAutoTradeTotalStakeChange: (amount: number) => void;
   onStartAiAutoTrade: () => void;
   onStopAiAutoTrade: () => void;
   isAutoTradingActive: boolean;
   disableManualControls?: boolean;
+  currentBalance: number; // Added to check against stake for manual trades
 }
 
 export function TradeControls({
@@ -37,7 +37,7 @@ export function TradeControls({
   onTradingModeChange,
   tradeDuration,
   onTradeDurationChange,
-  paperTradingMode, // 'paper' for Demo, 'live' for Real (simulated)
+  paperTradingMode, 
   onPaperTradingModeChange,
   stakeAmount,
   onStakeAmountChange,
@@ -50,10 +50,10 @@ export function TradeControls({
   onStopAiAutoTrade,
   isAutoTradingActive,
   disableManualControls = false,
+  currentBalance,
 }: TradeControlsProps) {
   const tradingModes: TradingMode[] = ['conservative', 'balanced', 'aggressive'];
   const tradeDurations: TradeDuration[] = ['30s', '1m', '5m', '15m', '30m'];
-  // paperTradingModes is effectively replaced by the account type switch
 
   const handleStakeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(event.target.value);
@@ -77,6 +77,8 @@ export function TradeControls({
     onPaperTradingModeChange(isRealAccount ? 'live' : 'paper');
   };
 
+  const isManualTradeDisabled = stakeAmount <= 0 || disableManualControls || isAiLoading || stakeAmount > currentBalance;
+
   return (
     <Card className="shadow-lg">
       <CardHeader>
@@ -89,7 +91,7 @@ export function TradeControls({
           <div className="flex items-center space-x-2">
             <Switch
               id="account-type-switch"
-              checked={paperTradingMode === 'live'} // 'live' means Real Account
+              checked={paperTradingMode === 'live'} 
               onCheckedChange={handleAccountTypeChange}
               disabled={isAutoTradingActive || isAiLoading} 
               aria-label="Account Type Switch"
@@ -108,7 +110,6 @@ export function TradeControls({
         </div>
 
 
-        {/* Manual Trading Section */}
         {!isAutoTradingActive && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
@@ -155,6 +156,9 @@ export function TradeControls({
                   disabled={disableManualControls}
                 />
               </div>
+              {stakeAmount > currentBalance && !disableManualControls && (
+                <p className="text-xs text-destructive mt-1">Stake exceeds available balance.</p>
+              )}
             </div>
              <Button
               onClick={onGetAiRecommendation}
@@ -170,7 +174,7 @@ export function TradeControls({
                 size="lg"
                 className="bg-green-500 hover:bg-green-600 text-white font-bold text-lg transition-transform hover:scale-105 active:scale-95 h-16"
                 onClick={() => onExecuteTrade('CALL')}
-                disabled={stakeAmount <= 0 || disableManualControls || isAiLoading}
+                disabled={isManualTradeDisabled}
               >
                 <TrendingUp className="mr-2 h-6 w-6" />
                 CALL
@@ -179,7 +183,7 @@ export function TradeControls({
                 size="lg"
                 className="bg-red-500 hover:bg-red-600 text-white font-bold text-lg transition-transform hover:scale-105 active:scale-95 h-16"
                 onClick={() => onExecuteTrade('PUT')}
-                disabled={stakeAmount <= 0 || disableManualControls || isAiLoading}
+                disabled={isManualTradeDisabled}
               >
                 <TrendingDown className="mr-2 h-6 w-6" />
                 PUT
@@ -191,7 +195,6 @@ export function TradeControls({
 
         <Separator />
 
-        {/* AI Automated Trading Section */}
         <div>
           <Label htmlFor="auto-stake-amount" className="text-sm font-medium text-muted-foreground">AI Auto-Trade Total Stake ($)</Label>
            <p className="text-xs text-muted-foreground mb-1">
@@ -210,13 +213,16 @@ export function TradeControls({
               disabled={isAutoTradingActive || isAiLoading}
             />
           </div>
+          {autoTradeTotalStake > currentBalance && !isAutoTradingActive && !isAiLoading && (
+             <p className="text-xs text-destructive mt-1">Auto-trade stake exceeds available balance.</p>
+          )}
         </div>
         
         {isAutoTradingActive ? (
           <Button
             onClick={onStopAiAutoTrade}
             className="w-full bg-red-600 hover:bg-red-700 text-primary-foreground"
-            disabled={isAiLoading && !isAutoTradingActive} // Allow stopping if main AI loading elsewhere, but not if this button caused loading
+            disabled={isAiLoading && !isAutoTradingActive} 
           >
             <Square className="mr-2 h-5 w-5" />
             Stop AI Auto-Trading
@@ -225,7 +231,7 @@ export function TradeControls({
           <Button
             onClick={onStartAiAutoTrade}
             className="w-full bg-blue-600 hover:bg-blue-700 text-primary-foreground"
-            disabled={isAiLoading || autoTradeTotalStake <=0}
+            disabled={isAiLoading || autoTradeTotalStake <=0 || autoTradeTotalStake > currentBalance}
           >
             <Play className="mr-2 h-5 w-5" />
             {isAiLoading && isAutoTradingActive ? 'Initializing AI Trades...' : 'Start AI Auto-Trading'}

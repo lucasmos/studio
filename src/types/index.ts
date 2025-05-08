@@ -4,15 +4,14 @@ export type TradingInstrument =
   | 'BTC/USD'
   | 'XAU/USD' // Gold
   | 'ETH/USD'; // Ethereum
-  // SOL/USD was removed as 'crySOLUSD' is an invalid symbol on Deriv
 
 export type TradingMode = 'conservative' | 'balanced' | 'aggressive';
 
-export type TradeDuration = '30s' | '1m' | '5m' | '15m' | '30m';
+export type TradeDuration = '30s' | '1m' | '5m' | '15m' | '30m'; // For binary options
 
 export type PaperTradingMode = 'paper' | 'live'; // 'live' means simulated live trading
 
-export interface AiRecommendation {
+export interface AiRecommendation { // For binary options dashboard
   tradeRecommendation: string;
   confidenceScore: number;
   optimalDuration: string;
@@ -20,27 +19,27 @@ export interface AiRecommendation {
 }
 
 export interface PriceTick {
-  epoch: number; // Epoch timestamp in seconds
+  epoch: number; 
   price: number;
-  time: string; // Formatted time string for display, e.g., "HH:mm:ss"
+  time: string; 
 }
 
-export interface AutomatedTradeProposal {
+export interface AutomatedTradeProposal { // For binary options auto-trading
   instrument: TradingInstrument;
   action: 'CALL' | 'PUT';
   stake: number;
-  durationSeconds: number; // Duration in seconds
+  durationSeconds: number; 
   reasoning: string;
 }
 
-export interface ActiveAutomatedTrade extends Omit<AutomatedTradeProposal, 'suggestedStopLossPips'> {
+export interface ActiveAutomatedTrade extends Omit<AutomatedTradeProposal, 'suggestedStopLossPips'> { // For binary options auto-trading
   id: string;
   entryPrice: number;
-  stopLossPrice: number; // This will be calculated as 5% of entryPrice
-  startTime: number; // timestamp
+  stopLossPrice: number; 
+  startTime: number; 
   status: 'active' | 'won' | 'lost_duration' | 'lost_stoploss';
-  pnl?: number; // Profit or Loss
-  currentPrice?: number; // For simulation display
+  pnl?: number; 
+  currentPrice?: number; 
 }
 
 export interface ProfitsClaimable {
@@ -50,12 +49,11 @@ export interface ProfitsClaimable {
   losingTrades: number;
 }
 
-// For AI Flow
+// For AI Flow (Binary options auto-trading)
 export interface AutomatedTradingStrategyInput {
   totalStake: number;
   instruments: TradingInstrument[];
   tradingMode: TradingMode;
-  // Record where key is instrument symbol, value is array of recent ticks
   instrumentTicks: Record<TradingInstrument, PriceTick[]>; 
 }
 
@@ -69,10 +67,54 @@ export interface UserInfo {
   id: string;
   name: string;
   email: string;
-  derivAccountId?: string; // Example: CR123456 for real, VRTC123456 for demo
+  derivAccountId?: string; 
 }
 
 export type AuthStatus = 'authenticated' | 'unauthenticated' | 'pending';
 
 // Payment types
 export type TransactionType = 'deposit' | 'withdrawal';
+
+
+// MT5 Trading Specific Types
+export type MT5TradeDirection = 'BUY' | 'SELL';
+export type MT5TradeStatus = 'PENDING_EXECUTION' | 'ACTIVE' | 'CLOSED_TP' | 'CLOSED_SL' | 'CLOSED_MANUAL' | 'CLOSED_TIMEOUT';
+export type MT5HoldingPeriod = '1H' | '4H' | '1D' | '1W'; // Example holding periods
+
+export interface MT5TradeOrder {
+  id: string;
+  instrument: TradingInstrument;
+  direction: MT5TradeDirection;
+  investment: number; // Amount invested
+  entryPrice: number;
+  takeProfit: number; // Price level
+  stopLoss: number;   // Price level
+  status: MT5TradeStatus;
+  openTime: number; // timestamp
+  closeTime?: number; // timestamp
+  pnl?: number; // Profit or Loss
+  currentPrice?: number; // For UI display of active trades
+  maxHoldingPeriodSeconds: number; // Calculated from MT5HoldingPeriod
+  aiCommentaryDuringTrade?: string; // AI's initial reasoning for TP/SL
+}
+
+export interface MT5InstrumentAnalysis {
+  instrument: TradingInstrument;
+  currentPrice: number;
+  suggestedTakeProfit: number;
+  suggestedStopLoss: number;
+  aiCommentary: string;
+  potentialDirection: 'UP' | 'DOWN' | 'UNCERTAIN';
+}
+
+export interface ClosedMT5Trade extends MT5TradeOrder {
+  closeReason: string; // e.g., "Take Profit hit", "Stop Loss triggered", "Manually closed", "Max holding period reached"
+}
+
+export interface MT5AccountSummary {
+    balance: number;
+    equity: number;
+    margin: number;
+    freeMargin: number;
+    marginLevelPercentage: number;
+}

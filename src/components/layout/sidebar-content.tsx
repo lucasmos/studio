@@ -8,26 +8,26 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  useSidebar, // Import useSidebar
+  useSidebar, 
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/icons/logo';
-import { LayoutDashboard, History, Settings, LogOut, DollarSign, LogIn, CreditCard } from 'lucide-react';
+import { LayoutDashboard, History, Settings, LogOut, DollarSign, LogIn, CreditCard, BarChartBig } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 
 export function SidebarContentComponent() {
   const { authStatus, userInfo, logout } = useAuth();
-  const { isMobile, setOpenMobile } = useSidebar(); // Get mobile state and setter
+  const { isMobile, setOpenMobile } = useSidebar(); 
   const pathname = usePathname();
   const router = useRouter();
 
   const handleLogout = () => {
     logout();
-    router.push('/'); // Redirect to home or login page after logout
+    router.push('/'); 
   };
 
   const handleMenuClick = () => {
@@ -40,7 +40,6 @@ export function SidebarContentComponent() {
     <Sidebar side="left" variant="sidebar" collapsible="icon">
       <SidebarHeader className="p-4">
         <Link href="/" className="flex items-center gap-2 text-sidebar-primary hover:text-sidebar-primary-foreground">
-          {/* Changed className for Logo to make its rect background match sidebar background */}
           <Logo className="h-8 w-auto text-sidebar-background" />
         </Link>
       </SidebarHeader>
@@ -57,6 +56,19 @@ export function SidebarContentComponent() {
               <Link href="/">
                 <LayoutDashboard />
                 <span>Dashboard</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === '/mt5-trading'}
+              tooltip={{ children: 'MT5 Trading', side: 'right' }}
+              onClick={handleMenuClick}
+            >
+              <Link href="/mt5-trading">
+                <BarChartBig />
+                <span>MT5 Trading</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -106,7 +118,7 @@ export function SidebarContentComponent() {
               tooltip={{ children: 'Settings', side: 'right' }}
               onClick={handleMenuClick}
             >
-              <Link href="/settings"> {/* Updated link to /settings */}
+              <Link href="/settings"> 
                 <Settings />
                 <span>Settings</span>
               </Link>
@@ -134,7 +146,7 @@ export function SidebarContentComponent() {
               className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:aspect-square"
               onClick={() => {
                 handleLogout();
-                handleMenuClick(); // Close sidebar on mobile if open
+                handleMenuClick(); 
               }}
               aria-label="Logout"
             >
