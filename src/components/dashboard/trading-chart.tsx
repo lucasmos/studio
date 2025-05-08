@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,6 +9,8 @@ import type { TradingInstrument, PriceTick, VolatilityInstrumentType, ForexCrypt
 import { getTicks } from '@/services/deriv'; 
 import { Skeleton } from '@/components/ui/skeleton';
 import { getInstrumentDecimalPlaces } from '@/lib/utils';
+// Import ScrollArea components if they were intended to be used, but for simple TabsList scrolling, direct overflow is often enough.
+// For this fix, direct overflow on TabsList is chosen. If a more styled scrollbar is needed, ScrollArea could be used.
 
 const chartConfig = {
   price: {
@@ -161,13 +162,31 @@ export function TradingChart({ instrument, onInstrumentChange }: TradingChartPro
       </CardHeader>
       <CardContent>
         <Tabs value={instrument} onValueChange={(value) => onInstrumentChange(value as TradingInstrument)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 mb-4"> 
+          <TabsList 
+            className="w-full justify-start overflow-x-auto whitespace-nowrap mb-4 pb-2 hide-scrollbar"
+            // Default TabsList styles: "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground"
+            // Overrides applied:
+            // - w-full: Makes it take full width (becomes block or flex based on other styles)
+            // - justify-start: Aligns tabs to the left for scrolling
+            // - overflow-x-auto: Enables horizontal scrolling
+            // - whitespace-nowrap: Prevents tabs from wrapping to new lines
+            // - mb-4: Margin bottom for spacing
+            // - pb-2: Extra padding at the bottom to make space for scrollbar and prevent text cutoff. Default p-1 is on all sides.
+            // - hide-scrollbar: (Optional, if you want to hide default scrollbar and rely on browser/OS native scrolling or custom one)
+            //   To implement hide-scrollbar, you'd typically add CSS like:
+            //   .hide-scrollbar::-webkit-scrollbar { display: none; }
+            //   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+            //   For now, we'll rely on default browser scrollbars.
+          > 
             {allInstruments.map((inst) => (
-              <TabsTrigger key={inst} value={inst}>{inst}</TabsTrigger>
+              <TabsTrigger key={inst} value={inst} className="flex-shrink-0">
+                {inst}
+              </TabsTrigger>
             ))}
           </TabsList>
+          
           {allInstruments.map((inst) => (
-            <TabsContent key={inst} value={inst}>
+            <TabsContent key={inst} value={inst} className="mt-0"> {/* Adjusted mt-0 as TabsList now has mb-4 */}
               <SingleInstrumentChartDisplay instrument={inst} /> 
             </TabsContent>
           ))}
@@ -176,3 +195,4 @@ export function TradingChart({ instrument, onInstrumentChange }: TradingChartPro
     </Card>
   );
 }
+
