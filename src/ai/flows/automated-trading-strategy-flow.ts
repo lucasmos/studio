@@ -138,7 +138,7 @@ const automatedTradingStrategyFlow = ai.defineFlow(
 );
 
 // Helper function to convert duration string (e.g., '5m', '30s') to seconds
-export function durationToSeconds(duration: string): number {
+function durationToSeconds(duration: string): number {
   const match = duration.match(/^(\d+)([smh])$/);
   if (!match) return 300; // Default to 5m if parse fails
   const value = parseInt(match[1]);
