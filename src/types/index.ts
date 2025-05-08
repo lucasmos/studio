@@ -24,16 +24,14 @@ export interface AutomatedTradeProposal {
   action: 'CALL' | 'PUT';
   stake: number;
   durationSeconds: number;
-  // Suggested pips/points away from entry for stop-loss.
-  // e.g., for EUR/USD, 10 pips = 0.0010. For BTC/USD, this would be a larger number.
-  suggestedStopLossPips: number; 
+  // suggestedStopLossPips is removed. System will apply a fixed 5% stop-loss.
   reasoning: string;
 }
 
-export interface ActiveAutomatedTrade extends AutomatedTradeProposal {
+export interface ActiveAutomatedTrade extends Omit<AutomatedTradeProposal, 'suggestedStopLossPips'> {
   id: string;
   entryPrice: number;
-  stopLossPrice: number;
+  stopLossPrice: number; // This will be calculated as 5% of entryPrice
   startTime: number; // timestamp
   status: 'active' | 'won' | 'lost_duration' | 'lost_stoploss';
   pnl?: number; // Profit or Loss

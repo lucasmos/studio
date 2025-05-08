@@ -32,7 +32,7 @@ const AutomatedTradeProposalSchema = z.object({
   action: z.enum(['CALL', 'PUT']).describe('The trade direction (CALL for price up, PUT for price down).'),
   stake: z.number().min(0.01).describe('The amount of stake apportioned to this specific trade. Must be a positive value.'),
   durationSeconds: z.number().int().min(1).describe('The duration of the trade in seconds (e.g., 30, 60, 300). Must be a positive integer.'),
-  suggestedStopLossPips: z.number().min(0.0001).describe('Suggested stop-loss distance in pips/points from the entry price. Must be a positive value. For Forex (e.g., EUR/USD), 1 pip = 0.0001. For BTC/USD, 1 point could be 1.00. Adjust based on instrument volatility. E.g., 10 pips for EUR/USD, 50 points for BTC/USD.'),
+  // suggestedStopLossPips is removed. A 5% stop-loss will be applied by the system.
   reasoning: z.string().describe('Brief reasoning for this specific trade proposal.'),
 });
 
@@ -56,6 +56,7 @@ const prompt = ai.definePrompt({
   input: {schema: AutomatedTradingStrategyInputSchema},
   output: {schema: AutomatedTradingStrategyOutputSchema},
   prompt: `You are an expert AI trading strategist. Your goal is to devise a set of trades to maximize profit based on the user's total stake, preferred instruments, trading mode, and recent price data.
+You MUST aim for a minimum 70% win rate across the proposed trades. Prioritize high-probability setups.
 
 User's Total Stake for this session: {{{totalStake}}}
 Available Instruments: {{#each instruments}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
@@ -69,30 +70,24 @@ Instrument: {{@key}}
   {{/each}}
 {{/each}}
 
+Important System Rule: A fixed 5% stop-loss based on the entry price will be automatically applied to every trade by the system. Consider this when selecting trades; avoid trades highly likely to hit this stop-loss quickly unless the potential reward significantly outweighs this risk within the trade duration.
+
 Your Task:
 1.  Analyze the provided tick data for trends and volatility for each instrument.
-2.  Based on the '{{{tradingMode}}}', decide which instruments to trade. You do not have to trade all ofthem. Prioritize instruments with higher profit potential aligned with the risk mode.
-    *   Conservative: Focus on safer, clearer trends, smaller stakes.
-    *   Balanced: Mix of opportunities, moderate stakes.
-    *   Aggressive: Higher risk/reward, potentially more volatile instruments, larger stakes if confidence is high.
+2.  Based on the '{{{tradingMode}}}', decide which instruments to trade. You do not have to trade all of them. Prioritize instruments with higher profit potential aligned with the risk mode and the 70% win rate target.
+    *   Conservative: Focus on safest, clearest trends, smaller stakes. Aim for >75% win rate.
+    *   Balanced: Mix of opportunities, moderate stakes. Aim for >=70% win rate.
+    *   Aggressive: Higher risk/reward, potentially more volatile instruments, larger stakes if confidence is high. Aim for >=70% win rate, even with higher risk.
 3.  For each instrument you choose to trade:
     *   Determine the trade direction: 'CALL' (price will go up) or 'PUT' (price will go down).
     *   Recommend a trade duration in seconds (e.g., 30, 60, 180, 300). Must be a positive integer.
-    *   Suggest a stop-loss in pips/points. This is the adverse price movement from entry that should trigger a close. Must be a positive value.
-        Examples: For EUR/USD, 10 pips is 0.0010. For BTC/USD, 50 points is 50.00.
-        The stop-loss should protect capital but allow for normal volatility.
-        - Conservative mode might use tighter stop-losses.
-        - Aggressive mode might use wider stop-losses.
-4.  Apportion the '{{{totalStake}}}' among your chosen trades. The sum of stakes for all proposed trades MUST NOT exceed '{{{totalStake}}}'. Each stake must be a positive value.
-5.  Provide clear reasoning for each trade proposal and for your overall strategy.
+    *   The system will set a 5% stop-loss. Your reasoning should reflect an understanding of this.
+4.  Apportion the '{{{totalStake}}}' among your chosen trades. The sum of stakes for all proposed trades MUST NOT exceed '{{{totalStake}}}'. Each stake must be a positive value (minimum $0.01).
+5.  Provide clear reasoning for each trade proposal and for your overall strategy, explicitly mentioning how it aligns with the 70% win rate target and the 5% stop-loss rule.
 
 Output Format:
 Return a JSON object matching the output schema. Ensure 'tradesToExecute' is an array of trade objects.
-'suggestedStopLossPips' should be a positive number representing the distance from entry. For example, if EUR/USD entry is 1.0750 and action is CALL, a suggestedStopLossPips of 10 (0.0010) means stop if price hits 1.0740. If action is PUT, stop if price hits 1.0760.
-
-Example for suggestedStopLossPips:
-- If instrument is EUR/USD or GBP/USD (Forex pairs where 1 pip = 0.0001 typically): A value of 10 means 0.0010 price movement.
-- If instrument is BTC/USD (where price is large, e.g., 65000.00): A value of 50 might mean $50.00 price movement. Use sensible values based on typical instrument volatility apparent from ticks.
+The system will calculate the exact stop-loss price based on 5% of the entry price.
 
 Begin your response with the JSON object.
 `,
@@ -105,37 +100,38 @@ const automatedTradingStrategyFlow = ai.defineFlow(
     outputSchema: AutomatedTradingStrategyOutputSchema,
   },
   async (input: AutomatedTradingStrategyInput) => {
-    // Potentially, pre-process or fetch more data here if needed.
-    // For now, directly call the prompt with the input.
-
     const {output} = await prompt(input);
     if (!output) {
       throw new Error("AI failed to generate an automated trading strategy.");
     }
-    // Validate that total stake of proposed trades does not exceed input.totalStake
-    const totalProposedStake = output.tradesToExecute.reduce((sum, trade) => sum + trade.stake, 0);
+    
+    let totalProposedStake = output.tradesToExecute.reduce((sum, trade) => sum + trade.stake, 0);
+    totalProposedStake = parseFloat(totalProposedStake.toFixed(2));
+
+
     if (totalProposedStake > input.totalStake) {
-        // Attempt to scale down stakes proportionally if AI over-allocated.
-        // This is a simple fix; ideally, the AI follows instructions.
         console.warn(`AI proposed total stake ${totalProposedStake} which exceeds available ${input.totalStake}. Scaling down.`);
         const scaleFactor = input.totalStake / totalProposedStake;
+        
         output.tradesToExecute.forEach(trade => {
-            trade.stake = Math.floor(trade.stake * scaleFactor * 100) / 100; // Scale and round to 2 decimal places for currency
-            if (trade.stake < 0.01) trade.stake = 0.01; // Ensure minimum stake
+            trade.stake = Math.max(0.01, parseFloat((trade.stake * scaleFactor).toFixed(2)));
         });
         
-        // Recalculate to confirm
+        // Recalculate to confirm total stake after scaling and applying minimum
         let revisedTotalProposedStake = output.tradesToExecute.reduce((sum, trade) => sum + trade.stake, 0);
         revisedTotalProposedStake = parseFloat(revisedTotalProposedStake.toFixed(2));
 
-
+        // If still over (e.g. due to many small trades hitting minimum 0.01 and summing up)
+        // we might need a more sophisticated way to drop trades or further adjust.
+        // For now, if it's still over, we log an error and return an empty strategy for safety.
         if (revisedTotalProposedStake > input.totalStake) {
-             // Still over after scaling (unlikely with floor, but good to check)
-             // Or, one trade might have a minimum stake making scaling problematic
-            console.error(`AI over-allocated stake (${revisedTotalProposedStake}), and scaling failed to correct it sufficiently below ${input.totalStake}. Returning empty strategy.`);
-            return { tradesToExecute: [], overallReasoning: `AI over-allocated stake (${revisedTotalProposedStake} vs ${input.totalStake}), and scaling failed. Please try again.`};
+            console.error(`AI over-allocated stake (${revisedTotalProposedStake}), and scaling failed to correct it sufficiently below ${input.totalStake}. Minimum trade stakes might be an issue. Returning empty strategy.`);
+            return { 
+                tradesToExecute: [], 
+                overallReasoning: `AI over-allocated stake (${revisedTotalProposedStake} vs ${input.totalStake}), and scaling adjustments respecting minimum trade amounts failed. Please try again with a larger total stake or different parameters.`
+            };
         }
-         output.overallReasoning += ` (Note: Stakes were adjusted to fit total budget of ${input.totalStake})`;
+        output.overallReasoning += ` (Note: Stakes were adjusted proportionally to fit total budget of ${input.totalStake}, respecting minimum trade amounts.)`;
     }
 
     return output;
