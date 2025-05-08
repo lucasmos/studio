@@ -2,7 +2,7 @@
 import type { TradingInstrument } from '@/types';
 
 // Deriv WebSocket API endpoint
-const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=36906'; // Using a common test app_id
+const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=74597'; // Updated app_id
 
 // Read the token from environment variables. NEXT_PUBLIC_ prefix makes it available to the browser.
 const DERIV_API_TOKEN_FROM_ENV = process.env.NEXT_PUBLIC_DERIV_API_TOKEN;
@@ -73,16 +73,15 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
 
     ws.onopen = () => {
       console.log(`Deriv WebSocket connected for ${derivSymbol}.`);
-      if (DERIV_API_TOKEN_FROM_ENV) {
-        if (DERIV_API_TOKEN_FROM_ENV === PLACEHOLDER_ENV_TOKEN_MESSAGE) {
-            console.warn(`Attempting to authorize with a placeholder token: "${PLACEHOLDER_ENV_TOKEN_MESSAGE}". This will likely fail. Please set a valid NEXT_PUBLIC_DERIV_API_TOKEN in your .env file.`);
-        } else {
-            console.log('Attempting to authorize with token from .env.');
-        }
+      if (DERIV_API_TOKEN_FROM_ENV && DERIV_API_TOKEN_FROM_ENV !== PLACEHOLDER_ENV_TOKEN_MESSAGE) {
+        console.log('Attempting to authorize with token from .env.');
         ws.send(JSON.stringify({ authorize: DERIV_API_TOKEN_FROM_ENV }));
       } else {
-        // No token provided in .env
-        console.warn('NEXT_PUBLIC_DERIV_API_TOKEN is not set in the .env file. Attempting to fetch public data. This may fail for protected resources like tick history.');
+        if (DERIV_API_TOKEN_FROM_ENV === PLACEHOLDER_ENV_TOKEN_MESSAGE) {
+             console.warn(`Attempting to authorize with a placeholder token: "${PLACEHOLDER_ENV_TOKEN_MESSAGE}". This will likely fail. Please set a valid NEXT_PUBLIC_DERIV_API_TOKEN in your .env file.`);
+        } else {
+            console.warn('NEXT_PUBLIC_DERIV_API_TOKEN is not set in the .env file. Attempting to fetch public data. This may fail for protected resources like tick history.');
+        }
         // For some public data, authorization might not be needed, but for ticks_history it often is.
         // We can proceed to sendTicksRequest, and if auth is required, Deriv will send an error.
         sendTicksRequest();
@@ -163,7 +162,12 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
 
     ws.onerror = (errorEvent) => {
       console.error(`Deriv WebSocket error for ${derivSymbol}. Event:`, errorEvent);
-      reject(new Error(`Deriv WebSocket error for ${derivSymbol}. See browser console for details.`));
+      // Check if it's a DOMException to avoid overly broad error messages for network issues.
+      if (errorEvent instanceof ErrorEvent && errorEvent.error instanceof DOMException) {
+        reject(new Error(`Deriv WebSocket connection error for ${derivSymbol}: ${errorEvent.message}. Check network and API endpoint.`));
+      } else {
+        reject(new Error(`Deriv WebSocket error for ${derivSymbol}. See browser console for details.`));
+      }
       if (ws.readyState !== ws.CLOSED && ws.readyState !== ws.CLOSING) {
         ws.close();
       }
