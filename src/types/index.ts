@@ -1,4 +1,10 @@
-export type TradingInstrument = 'EUR/USD' | 'GBP/USD' | 'BTC/USD';
+export type TradingInstrument =
+  | 'EUR/USD'
+  | 'GBP/USD'
+  | 'BTC/USD'
+  | 'XAU/USD' // Gold
+  | 'ETH/USD' // Ethereum
+  | 'SOL/USD'; // Solana
 
 export type TradingMode = 'conservative' | 'balanced' | 'aggressive';
 

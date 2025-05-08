@@ -6,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
 import type { TradingInstrument, TradeDuration } from '@/types';
+import { getInstrumentDecimalPlaces } from '@/lib/utils';
+
 
 interface TradeRecord {
   id: string;
@@ -28,8 +30,8 @@ const mockTradeHistory: TradeRecord[] = [
     instrument: 'EUR/USD',
     type: 'CALL',
     duration: '5m',
-    entryPrice: 1.0750,
-    exitPrice: 1.0755,
+    entryPrice: 1.07500,
+    exitPrice: 1.07550,
     stake: 100,
     payout: 185,
     status: 'Won',
@@ -40,8 +42,8 @@ const mockTradeHistory: TradeRecord[] = [
     instrument: 'GBP/USD',
     type: 'PUT',
     duration: '15m',
-    entryPrice: 1.2500,
-    exitPrice: 1.2510,
+    entryPrice: 1.25000,
+    exitPrice: 1.25100,
     stake: 50,
     payout: 0,
     status: 'Lost',
@@ -53,19 +55,19 @@ const mockTradeHistory: TradeRecord[] = [
     type: 'CALL',
     duration: '30s',
     entryPrice: 65000.00,
-    exitPrice: 65000.00, // Price didn't change enough
+    exitPrice: 65000.00, 
     stake: 200,
-    payout: 0, // Could be a push/tie scenario, for simplicity marking as Lost if not profitable
+    payout: 0, 
     status: 'Lost', 
   },
    {
     id: 'trade_4',
     timestamp: new Date(Date.now() - 3600000 * 8), // 8 hours ago
-    instrument: 'EUR/USD',
-    type: 'PUT',
+    instrument: 'XAU/USD', // Gold example
+    type: 'CALL',
     duration: '1m',
-    entryPrice: 1.0800,
-    exitPrice: 1.0790,
+    entryPrice: 2300.50,
+    exitPrice: 2305.25,
     stake: 75,
     payout: 138.75,
     status: 'Won',
@@ -73,11 +75,11 @@ const mockTradeHistory: TradeRecord[] = [
   {
     id: 'trade_5',
     timestamp: new Date(Date.now() - 3600000 * 24), // 24 hours ago
-    instrument: 'GBP/USD',
-    type: 'CALL',
+    instrument: 'ETH/USD', // Ethereum example
+    type: 'PUT',
     duration: '30m',
-    entryPrice: 1.2450,
-    exitPrice: 1.2440,
+    entryPrice: 3500.00,
+    exitPrice: 3490.50,
     stake: 150,
     payout: 0,
     status: 'Lost',
@@ -97,11 +99,17 @@ export default function TradeHistoryPage() {
     if (amount === null) return '-';
     return amount.toLocaleString(undefined, { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
+  
+  const formatPrice = (price: number | null, instrument: TradingInstrument) => {
+    if (price === null) return '-';
+    return price.toFixed(getInstrumentDecimalPlaces(instrument));
+  };
+
 
   const getStatusBadgeVariant = (status: TradeRecord['status']) => {
     switch (status) {
       case 'Won':
-        return 'default'; // Default is often green or primary
+        return 'default'; 
       case 'Lost':
         return 'destructive';
       case 'Open':
@@ -162,8 +170,8 @@ export default function TradeHistoryPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>{trade.duration}</TableCell>
-                      <TableCell className="text-right">{trade.instrument === 'BTC/USD' ? formatCurrency(trade.entryPrice, 'USD') : trade.entryPrice.toFixed(4)}</TableCell>
-                      <TableCell className="text-right">{trade.exitPrice !== null ? (trade.instrument === 'BTC/USD' ? formatCurrency(trade.exitPrice, 'USD') : trade.exitPrice.toFixed(4)) : '-'}</TableCell>
+                      <TableCell className="text-right">{formatPrice(trade.entryPrice, trade.instrument)}</TableCell>
+                      <TableCell className="text-right">{formatPrice(trade.exitPrice, trade.instrument)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(trade.stake)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(trade.payout)}</TableCell>
                       <TableCell className="text-center">

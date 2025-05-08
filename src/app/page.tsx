@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -5,7 +6,7 @@ import { BalanceDisplay } from '@/components/dashboard/balance-display';
 import { TradingChart } from '@/components/dashboard/trading-chart';
 import { TradeControls } from '@/components/dashboard/trade-controls';
 import { AiRecommendationCard } from '@/components/dashboard/ai-recommendation-card';
-import type { TradingInstrument, TradingMode, TradeDuration, AiRecommendation, PaperTradingMode, ActiveAutomatedTrade, ProfitsClaimable, AutomatedTradeProposal, PriceTick } from '@/types';
+import type { TradingInstrument, TradingMode, TradeDuration, AiRecommendation, PaperTradingMode, ActiveAutomatedTrade, ProfitsClaimable, PriceTick } from '@/types';
 import { analyzeMarketSentiment } from '@/ai/flows/analyze-market-sentiment';
 import { explainAiReasoning } from '@/ai/flows/explain-ai-reasoning';
 import { generateAutomatedTradingStrategy } from '@/ai/flows/automated-trading-strategy-flow';
@@ -14,19 +15,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { getTicks } from '@/services/deriv';
-import { v4 as uuidv4 } from 'uuid'; // For generating unique IDs for trades
-
-// Helper function to determine pip size for display formatting
-const getPipSize = (instrument: TradingInstrument): number => {
-  if (instrument === 'BTC/USD') {
-    return 1; // For BTC/USD, 1 point = $1 movement typically
-  }
-  return 0.0001; // For forex pairs like EUR/USD, GBP/USD
-};
+import { v4 as uuidv4 } from 'uuid'; 
+import { getInstrumentDecimalPlaces } from '@/lib/utils';
 
 
 export default function DashboardPage() {
-  const [balance, setBalance] = useState(10000); // Default demo balance
+  const [balance, setBalance] = useState(10000); 
   const [currentInstrument, setCurrentInstrument] = useState<TradingInstrument>('EUR/USD');
   const [tradingMode, setTradingMode] = useState<TradingMode>('balanced');
   const [tradeDuration, setTradeDuration] = useState<TradeDuration>('5m');
@@ -36,7 +30,6 @@ export default function DashboardPage() {
   const [aiRecommendation, setAiRecommendation] = useState<AiRecommendation | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
-  // State for Automated AI Trading
   const [autoTradeTotalStake, setAutoTradeTotalStake] = useState<number>(100);
   const [isAutoTradingActive, setIsAutoTradingActive] = useState(false);
   const [activeAutomatedTrades, setActiveAutomatedTrades] = useState<ActiveAutomatedTrade[]>([]);
@@ -70,8 +63,8 @@ export default function DashboardPage() {
 
   const handleExecuteTrade = (action: 'CALL' | 'PUT') => {
     console.log(`Executing ${action} trade for ${currentInstrument} with duration ${tradeDuration} and stake ${stakeAmount} in ${tradingMode} mode. Paper trading: ${paperTradingMode}`);
-    const outcome = Math.random() > 0.5 ? "won" : "lost"; // 50/50 for manual trades for now
-    const potentialProfit = stakeAmount * 0.85; // Assume 85% payout
+    const outcome = Math.random() > 0.5 ? "won" : "lost"; 
+    const potentialProfit = stakeAmount * 0.85; 
 
     if (paperTradingMode === 'paper') {
       setBalance(prev => outcome === "won" ? prev + potentialProfit : prev - stakeAmount);
@@ -94,7 +87,6 @@ export default function DashboardPage() {
       };
       const sentimentResult = await analyzeMarketSentiment(marketSentimentParams);
       
-      // Mocked technical indicators for reasoning. In a real app, these would come from analysis.
       const rsi = Math.random() * 100;
       const macd = (Math.random() - 0.5) * 0.1;
       const volatility = ['low', 'medium', 'high'][Math.floor(Math.random() * 3)];
@@ -113,7 +105,7 @@ export default function DashboardPage() {
         optimalDuration: sentimentResult.optimalDuration,
         reasoning: explanationResult.explanation,
       });
-
+      
       toast({
         title: "AI Analysis Complete",
         description: `Recommendation for ${currentInstrument} received.`,
@@ -132,7 +124,6 @@ export default function DashboardPage() {
     }
   }, [currentInstrument, tradingMode, toast]);
 
-  // Automated Trading Logic
   const handleStartAiAutoTrade = useCallback(async () => {
     if (autoTradeTotalStake <= 0) {
       toast({ title: "Invalid Stake", description: "Please enter a valid total stake for AI trading.", variant: "destructive" });
@@ -143,7 +134,7 @@ export default function DashboardPage() {
     setActiveAutomatedTrades([]); 
 
     try {
-      const instrumentsToConsider: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD'];
+      const instrumentsToConsider: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD', 'SOL/USD'];
       const instrumentTicksData: Record<TradingInstrument, PriceTick[]> = {} as Record<TradingInstrument, PriceTick[]>;
       
       for (const inst of instrumentsToConsider) {
@@ -160,7 +151,7 @@ export default function DashboardPage() {
 
       if (strategyResult.tradesToExecute.length === 0) {
         toast({ title: "AI Auto-Trade", description: "AI decided not to place trades at this time. " + strategyResult.overallReasoning, duration: 7000 });
-        setIsAutoTradingActive(false); // AI didn't start any trades
+        setIsAutoTradingActive(false); 
         setIsAiLoading(false);
         return;
       }
@@ -185,15 +176,14 @@ export default function DashboardPage() {
         }
         const entryPrice = currentTicks[currentTicks.length - 1].price;
         
-        // Calculate 5% stop-loss price
         let stopLossPrice;
         if (proposal.action === 'CALL') {
-          stopLossPrice = entryPrice * (1 - 0.05); // 5% below entry
-        } else { // PUT
-          stopLossPrice = entryPrice * (1 + 0.05); // 5% above entry
+          stopLossPrice = entryPrice * (1 - 0.05); 
+        } else { 
+          stopLossPrice = entryPrice * (1 + 0.05); 
         }
-        // Ensure stopLossPrice has appropriate precision
-        stopLossPrice = parseFloat(stopLossPrice.toFixed(proposal.instrument === 'BTC/USD' ? 2 : 4));
+        
+        stopLossPrice = parseFloat(stopLossPrice.toFixed(getInstrumentDecimalPlaces(proposal.instrument)));
 
 
         const tradeId = uuidv4();
@@ -229,23 +219,20 @@ export default function DashboardPage() {
   }, [autoTradeTotalStake, tradingMode, toast]);
 
   const handleStopAiAutoTrade = () => {
-    setIsAutoTradingActive(false); // This will trigger cleanup in the useEffect below
-    // Update status of any truly active trades to 'lost_duration' or a new 'cancelled_by_user' status
-    // to reflect they didn't complete naturally. The PNL should be -stake for these.
+    setIsAutoTradingActive(false); 
     setActiveAutomatedTrades(prevTrades => 
       prevTrades.map(trade => {
         if (trade.status === 'active') {
           const pnl = -trade.stake;
-          // Update profits claimable immediately for cancelled trades
           setProfitsClaimable(prevProfits => ({
             totalNetProfit: prevProfits.totalNetProfit + pnl,
             tradeCount: prevProfits.tradeCount + 1,
-            winningTrades: prevProfits.winningTrades, // Not a win
+            winningTrades: prevProfits.winningTrades, 
             losingTrades: prevProfits.losingTrades + 1, 
           }));
           return {
             ...trade, 
-            status: 'lost_duration', // Or a new 'cancelled_by_user' status
+            status: 'lost_duration', 
             pnl, 
             reasoning: (trade.reasoning || "") + " Manually stopped by user." 
           };
@@ -257,39 +244,29 @@ export default function DashboardPage() {
   };
   
   useEffect(() => {
-    if (!isAutoTradingActive) { // If auto trading is globally stopped
+    if (!isAutoTradingActive) { 
       tradeIntervals.current.forEach(intervalId => clearInterval(intervalId));
       tradeIntervals.current.clear();
-      return; // Exit early, no need to process trades
-    }
-
-    if (activeAutomatedTrades.length === 0 && isAutoTradingActive) {
-        // This case handles if AI proposes trades but none are valid to start,
-        // or if all trades finished and handleStartAiAutoTrade didn't reset isAutoTradingActive
-        // because it completed without error but yielded no trades to monitor.
-        // However, the primary check for all trades finishing is now inside the interval logic.
+      return; 
     }
     
     activeAutomatedTrades.forEach(trade => {
       if (trade.status === 'active' && !tradeIntervals.current.has(trade.id)) {
         const intervalId = setInterval(() => {
           setActiveAutomatedTrades(prevTrades => {
-            let allTradesConcluded = true;
             const updatedTrades = prevTrades.map(currentTrade => {
               if (currentTrade.id !== trade.id || currentTrade.status !== 'active') {
-                if(currentTrade.status === 'active') allTradesConcluded = false; // Check other trades
                 return currentTrade;
               }
-
-              allTradesConcluded = false; // This trade is active, so not all concluded yet
 
               let newStatus = currentTrade.status;
               let pnl = currentTrade.pnl ?? 0;
               let newCurrentPrice = currentTrade.currentPrice ?? currentTrade.entryPrice;
+              const decimalPlaces = getInstrumentDecimalPlaces(currentTrade.instrument);
 
-              const priceChangeFactor = currentTrade.instrument === 'BTC/USD' ? (Math.random() - 0.5) * 20 : (Math.random() - 0.5) * 0.0005;
+              const priceChangeFactor = (Math.random() - 0.5) * (decimalPlaces === 2 ? 20 : 0.0005); // Simplified price movement
               newCurrentPrice += priceChangeFactor;
-              newCurrentPrice = parseFloat(newCurrentPrice.toFixed(currentTrade.instrument === 'BTC/USD' ? 2 : 4));
+              newCurrentPrice = parseFloat(newCurrentPrice.toFixed(decimalPlaces));
 
               if (currentTrade.action === 'CALL' && newCurrentPrice <= currentTrade.stopLossPrice) {
                 newStatus = 'lost_stoploss';
@@ -300,7 +277,7 @@ export default function DashboardPage() {
               }
 
               if (newStatus === 'active' && Date.now() >= currentTrade.startTime + currentTrade.durationSeconds * 1000) {
-                const isWin = Math.random() < 0.70; // Target 70% win rate for simulation
+                const isWin = Math.random() < 0.70; 
                 if (isWin) {
                   newStatus = 'won';
                   pnl = currentTrade.stake * 0.85; 
@@ -322,7 +299,7 @@ export default function DashboardPage() {
                   losingTrades: (newStatus === 'lost_duration' || newStatus === 'lost_stoploss') ? prevProfits.losingTrades + 1 : prevProfits.losingTrades,
                 }));
                 
-                setTimeout(() => {
+                setTimeout(() => { // Ensure toast is called outside of render cycle
                   toast({
                     title: `Auto-Trade Ended: ${currentTrade.instrument}`,
                     description: `Status: ${newStatus}, P/L: $${pnl.toFixed(2)}`,
@@ -333,23 +310,10 @@ export default function DashboardPage() {
               return { ...currentTrade, status: newStatus, pnl, currentPrice: newCurrentPrice };
             });
 
-            // After updating, check if all trades are now concluded
             const stillActiveTradesExist = updatedTrades.some(t => t.status === 'active');
-            if (!stillActiveTradesExist && isAutoTradingActive) { // only if auto trading was meant to be active
-                // All trades concluded, stop the auto-trading session state
-                // This needs to be wrapped in a `setIsAutoTradingActive` call
-                // but that would cause a re-render loop here.
-                // A better way is to set a flag or use a ref to signal this outside.
-                // Or, call `handleStopAiAutoTrade` but without the manual stop toast.
-                // For now, deferring the state change.
-                // This should be setIsAutoTradingActive(false)
-                console.log("All automated trades have concluded.");
-                 // This will trigger the cleanup in the next render cycle of this useEffect
-                 // or the main `isAutoTradingActive` condition at the top.
-                 // To ensure it happens now:
+            if (!stillActiveTradesExist && isAutoTradingActive) {
                  setTimeout(() => setIsAutoTradingActive(false), 0);
             }
-
 
             return updatedTrades;
           });
@@ -362,7 +326,7 @@ export default function DashboardPage() {
       tradeIntervals.current.forEach(intervalId => clearInterval(intervalId));
       tradeIntervals.current.clear();
     };
-  }, [activeAutomatedTrades, isAutoTradingActive, toast, autoTradeTotalStake]); // Added autoTradeTotalStake as a dep.
+  }, [activeAutomatedTrades, isAutoTradingActive, toast, autoTradeTotalStake]);
 
 
   return (
@@ -405,9 +369,9 @@ export default function DashboardPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>${trade.stake.toFixed(2)}</TableCell>
-                        <TableCell>{trade.entryPrice.toFixed(getPipSize(trade.instrument) === 1 ? 2: 4)}</TableCell>
-                        <TableCell>{trade.currentPrice?.toFixed(getPipSize(trade.instrument) === 1 ? 2: 4) ?? '-'}</TableCell>
-                        <TableCell>{trade.stopLossPrice.toFixed(getPipSize(trade.instrument) === 1 ? 2: 4)}</TableCell>
+                        <TableCell>{trade.entryPrice.toFixed(getInstrumentDecimalPlaces(trade.instrument))}</TableCell>
+                        <TableCell>{trade.currentPrice?.toFixed(getInstrumentDecimalPlaces(trade.instrument)) ?? '-'}</TableCell>
+                        <TableCell>{trade.stopLossPrice.toFixed(getInstrumentDecimalPlaces(trade.instrument))}</TableCell>
                         <TableCell>
                            <Badge variant={trade.status === 'active' ? 'secondary' : (trade.status === 'won' ? 'default' : 'destructive')}
                                   className={trade.status === 'active' ? '' : (trade.status === 'won' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600')}>
@@ -438,7 +402,7 @@ export default function DashboardPage() {
             onStakeAmountChange={setStakeAmount}
             onExecuteTrade={handleExecuteTrade}
             onGetAiRecommendation={handleGetAiRecommendation}
-            isAiLoading={isAiLoading && !isAutoTradingActive} // Only show manual AI loading if not auto-trading
+            isAiLoading={isAiLoading && !isAutoTradingActive} 
             autoTradeTotalStake={autoTradeTotalStake}
             onAutoTradeTotalStakeChange={setAutoTradeTotalStake}
             onStartAiAutoTrade={handleStartAiAutoTrade}
@@ -453,7 +417,6 @@ export default function DashboardPage() {
   );
 }
 
-// Helper to get uuid, since it's not available by default in browser client components without explicit import
 const { v4: importedUuidv4 } = require('uuid');
 if (typeof window !== 'undefined' && !(window as any).uuidv4) {
   (window as any).uuidv4 = importedUuidv4;

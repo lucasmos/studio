@@ -37,9 +37,17 @@ const instrumentToDerivSymbol = (instrument: TradingInstrument): string => {
       return 'frxGBPUSD';
     case 'BTC/USD':
       return 'cryBTCUSD';
+    case 'XAU/USD':
+      return 'frxXAUUSD'; // Gold vs USD
+    case 'ETH/USD':
+      return 'cryETHUSD'; // Ethereum vs USD
+    case 'SOL/USD':
+      return 'crySOLUSD'; // Solana vs USD
     default:
-      console.warn(`Unknown instrument: ${instrument}, defaulting to R_100`);
-      return 'R_100'; // A default Volatility Index
+      console.warn(`Unknown instrument: ${instrument}, defaulting to R_100 (Volatility Index 100)`);
+      // This default might not be ideal if R_100 doesn't support ticks_history or requires different params.
+      // Consider throwing an error or having a more suitable default based on app requirements.
+      return 'R_100'; 
   }
 };
 
@@ -77,8 +85,6 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
         ws.send(JSON.stringify({ authorize: DERIV_API_TOKEN }));
       } else {
         console.warn('Deriv API token is not available. Attempting to fetch public data. This may fail for protected resources like tick history.');
-        // For some public data, authorization might not be needed, but for ticks_history it often is.
-        // We can proceed to sendTicksRequest, and if auth is required, Deriv will send an error.
         sendTicksRequest();
       }
     };
@@ -89,9 +95,8 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
         JSON.stringify({
           ticks_history: derivSymbol,
           end: 'latest',
-          count: 50, 
+          count: 50, // Fetch 50 ticks for the chart
           style: 'ticks',
-          // subscribe: 0, // Removed: subscribe is not a valid param for ticks_history
         })
       );
       requestSent = true;
@@ -113,9 +118,8 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
           if (response.authorize) {
             console.log('Deriv API Authorized successfully.');
             authorized = true;
-            sendTicksRequest(); // Send tick request after successful authorization
+            sendTicksRequest(); 
           } else {
-            // This path might not be hit if response.error is already populated for auth failures
             console.error('Deriv API Authorization failed. Response:', response);
             reject(new Error('Deriv API Authorization failed. Ensure your token is valid and has tick_history permissions.'));
             ws.close();
@@ -157,10 +161,9 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
 
     ws.onerror = (errorEvent) => {
       console.error(`Deriv WebSocket error for ${derivSymbol}. Event:`, errorEvent);
-      // Check if it's a DOMException to avoid overly broad error messages for network issues.
       if (errorEvent instanceof ErrorEvent && errorEvent.error instanceof DOMException) {
         reject(new Error(`Deriv WebSocket connection error for ${derivSymbol}: ${errorEvent.message}. Check network and API endpoint.`));
-      } else if (errorEvent instanceof Event && errorEvent.type === 'error') { // Generic error event
+      } else if (errorEvent instanceof Event && errorEvent.type === 'error') { 
         reject(new Error(`Deriv WebSocket connection error for ${derivSymbol}. Check network and API endpoint.`));
       }
       else {
@@ -174,9 +177,6 @@ export async function getTicks(instrument: TradingInstrument): Promise<Tick[]> {
     ws.onclose = (event) => {
       clearTimeout(timeout);
       console.log(`Deriv WebSocket disconnected for ${derivSymbol}. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`);
-      // If not resolved yet, it might be an unexpected close.
-      // This check is a bit tricky, as resolve/reject might have already been called.
-      // Consider if a specific rejection here is needed or if existing error handling covers it.
     };
   });
 }
@@ -203,6 +203,7 @@ export interface OrderBookDepth {
  */
 export async function getOrderBookDepth(instrument: TradingInstrument): Promise<OrderBookDepth> {
   console.warn(`getOrderBookDepth for ${instrument} is not yet implemented with real API.`);
+  // Mock data, replace with actual API call if needed
   return {
     asks: [
       [1.2346, 10],
@@ -214,4 +215,3 @@ export async function getOrderBookDepth(instrument: TradingInstrument): Promise<
     ],
   };
 }
-

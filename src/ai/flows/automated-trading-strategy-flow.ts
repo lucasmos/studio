@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview AI flow for generating an automated trading strategy.
@@ -9,8 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { TradingInstrument, PriceTick, TradingMode, AutomatedTradeProposal, AutomatedTradingStrategyOutput as AIOutputType, AutomatedTradingStrategyInput as AIInputType } from '@/types';
-import { getTicks } from '@/services/deriv'; // To fetch current prices if needed for context
+import type { TradingInstrument, PriceTick } from '@/types'; // Removed unused imports
 
 // Define Zod schemas based on TypeScript types
 const PriceTickSchema = z.object({
@@ -19,20 +19,28 @@ const PriceTickSchema = z.object({
   time: z.string(),
 });
 
+const TradingInstrumentEnum = z.nativeEnum({
+  EUR_USD: 'EUR/USD', 
+  GBP_USD: 'GBP/USD', 
+  BTC_USD: 'BTC/USD',
+  XAU_USD: 'XAU/USD', // Gold
+  ETH_USD: 'ETH/USD', // Ethereum
+  SOL_USD: 'SOL/USD'  // Solana
+} as const);
+
 const AutomatedTradingStrategyInputSchema = z.object({
   totalStake: z.number().positive().describe('Total amount available for trading in this session.'),
-  instruments: z.array(z.nativeEnum({EUR_USD: 'EUR/USD', GBP_USD: 'GBP/USD', BTC_USD: 'BTC/USD'} as const)).describe('List of available trading instruments.'),
+  instruments: z.array(TradingInstrumentEnum).describe('List of available trading instruments.'),
   tradingMode: z.enum(['conservative', 'balanced', 'aggressive']).describe('The user-defined trading risk mode.'),
-  instrumentTicks: z.record(z.nativeEnum({EUR_USD: 'EUR/USD', GBP_USD: 'GBP/USD', BTC_USD: 'BTC/USD'} as const), z.array(PriceTickSchema))
+  instrumentTicks: z.record(TradingInstrumentEnum, z.array(PriceTickSchema))
     .describe('Record of recent price ticks for each available instrument. Key is instrument symbol, value is array of ticks (latest first).'),
 });
 
 const AutomatedTradeProposalSchema = z.object({
-  instrument: z.nativeEnum({EUR_USD: 'EUR/USD', GBP_USD: 'GBP/USD', BTC_USD: 'BTC/USD'} as const).describe('The trading instrument for this trade.'),
+  instrument: TradingInstrumentEnum.describe('The trading instrument for this trade.'),
   action: z.enum(['CALL', 'PUT']).describe('The trade direction (CALL for price up, PUT for price down).'),
   stake: z.number().min(0.01).describe('The amount of stake apportioned to this specific trade. Must be a positive value.'),
-  durationSeconds: z.number().int().min(1).describe('The duration of the trade in seconds (e.g., 30, 60, 300). Must be a positive integer.'),
-  // suggestedStopLossPips is removed. A 5% stop-loss will be applied by the system.
+  durationSeconds: z.number().int().positive().describe('The duration of the trade in seconds (e.g., 30, 60, 300). Must be a positive integer.'),
   reasoning: z.string().describe('Brief reasoning for this specific trade proposal.'),
 });
 
@@ -46,8 +54,6 @@ export type AutomatedTradingStrategyOutput = z.infer<typeof AutomatedTradingStra
 
 
 export async function generateAutomatedTradingStrategy(input: AutomatedTradingStrategyInput): Promise<AutomatedTradingStrategyOutput> {
-  // Augment input with current prices if needed, or rely on provided ticks
-  // For simplicity, we assume `instrumentTicks` in input is sufficient for AI analysis
   return automatedTradingStrategyFlow(input);
 }
 
@@ -80,14 +86,15 @@ Your Task:
     *   Aggressive: Higher risk/reward, potentially more volatile instruments, larger stakes if confidence is high. Aim for >=70% win rate, even with higher risk.
 3.  For each instrument you choose to trade:
     *   Determine the trade direction: 'CALL' (price will go up) or 'PUT' (price will go down).
-    *   Recommend a trade duration in seconds (e.g., 30, 60, 180, 300). Must be a positive integer.
+    *   Recommend a trade duration in SECONDS (e.g., 30, 60, 180, 300). Durations MUST be positive integers representing seconds.
     *   The system will set a 5% stop-loss. Your reasoning should reflect an understanding of this.
 4.  Apportion the '{{{totalStake}}}' among your chosen trades. The sum of stakes for all proposed trades MUST NOT exceed '{{{totalStake}}}'. Each stake must be a positive value (minimum $0.01).
 5.  Provide clear reasoning for each trade proposal and for your overall strategy, explicitly mentioning how it aligns with the 70% win rate target and the 5% stop-loss rule.
 
 Output Format:
 Return a JSON object matching the output schema. Ensure 'tradesToExecute' is an array of trade objects.
-The system will calculate the exact stop-loss price based on 5% of the entry price.
+Each trade's 'stake' must be a number (e.g., 10.50).
+Each trade's 'durationSeconds' must be an integer number of seconds (e.g., 30, 60, 300).
 
 Begin your response with the JSON object.
 `,
@@ -117,13 +124,9 @@ const automatedTradingStrategyFlow = ai.defineFlow(
             trade.stake = Math.max(0.01, parseFloat((trade.stake * scaleFactor).toFixed(2)));
         });
         
-        // Recalculate to confirm total stake after scaling and applying minimum
         let revisedTotalProposedStake = output.tradesToExecute.reduce((sum, trade) => sum + trade.stake, 0);
         revisedTotalProposedStake = parseFloat(revisedTotalProposedStake.toFixed(2));
 
-        // If still over (e.g. due to many small trades hitting minimum 0.01 and summing up)
-        // we might need a more sophisticated way to drop trades or further adjust.
-        // For now, if it's still over, we log an error and return an empty strategy for safety.
         if (revisedTotalProposedStake > input.totalStake) {
             console.error(`AI over-allocated stake (${revisedTotalProposedStake}), and scaling failed to correct it sufficiently below ${input.totalStake}. Minimum trade stakes might be an issue. Returning empty strategy.`);
             return { 

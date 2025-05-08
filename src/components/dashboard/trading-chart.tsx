@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -8,6 +9,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } fro
 import type { TradingInstrument, PriceTick } from '@/types';
 import { getTicks } from '@/services/deriv'; // Import the service
 import { Skeleton } from '@/components/ui/skeleton';
+import { getInstrumentDecimalPlaces } from '@/lib/utils';
 
 const chartConfig = {
   price: {
@@ -25,9 +27,10 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
   const [data, setData] = useState<PriceTick[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const decimalPlaces = getInstrumentDecimalPlaces(instrument);
 
   useEffect(() => {
-    let isActive = true; // To prevent state updates on unmounted component
+    let isActive = true; 
 
     const fetchTicksData = async () => {
       setIsLoading(true);
@@ -41,7 +44,7 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
         console.error(`Failed to fetch ticks for ${instrument}:`, err);
         if (isActive) {
           setError(`Failed to load data for ${instrument}.`);
-          setData([]); // Clear data on error
+          setData([]); 
         }
       } finally {
         if (isActive) {
@@ -53,16 +56,16 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
     fetchTicksData();
 
     return () => {
-      isActive = false; // Cleanup function to set isActive to false when component unmounts
+      isActive = false; 
     };
-  }, [instrument]); // Refetch when instrument changes
+  }, [instrument]); 
 
   const formattedData = useMemo(() => {
     return data.map(tick => ({
-      time: tick.time, // Assuming tick.time is already formatted "HH:mm:ss"
-      price: parseFloat(tick.price.toFixed(instrument === 'BTC/USD' ? 2 : 4))
+      time: tick.time, 
+      price: parseFloat(tick.price.toFixed(decimalPlaces))
     }));
-  }, [data, instrument]);
+  }, [data, decimalPlaces]);
 
   if (isLoading) {
     return (
@@ -101,15 +104,14 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
             dataKey="time" 
             tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
             tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-            // Display fewer ticks if data is dense
             interval={formattedData.length > 20 ? Math.floor(formattedData.length / 10) : 0}
           />
           <YAxis 
             domain={['auto', 'auto']}
-            tickFormatter={(value) => typeof value === 'number' ? value.toFixed(instrument === 'BTC/USD' ? 2 : 4) : value}
+            tickFormatter={(value) => typeof value === 'number' ? value.toFixed(decimalPlaces) : value}
             tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
             tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-            width={80} // Adjust width to prevent label cropping
+            width={80} 
           />
           <ChartTooltip
             cursor={true}
@@ -117,10 +119,10 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
                         indicator="line" 
                         labelKey="price" 
                         formatter={(value, name, props) => {
-                           const price = typeof props.payload?.price === 'number' ? props.payload.price.toFixed(instrument === 'BTC/USD' ? 2 : 4) : 'N/A';
+                           const price = typeof props.payload?.price === 'number' ? props.payload.price.toFixed(decimalPlaces) : 'N/A';
                            return [`Price: ${price}`, `Time: ${props.payload?.time}`];
                         }}
-                        hideLabel={true} // Hiding the default label which might just be "Price"
+                        hideLabel={true} 
                      />}
           />
           <Line
@@ -138,7 +140,7 @@ function InstrumentChart({ instrument }: { instrument: TradingInstrument }) {
 
 
 export function TradingChart({ instrument, onInstrumentChange }: TradingChartProps) {
-  const instruments: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD'];
+  const instruments: TradingInstrument[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD', 'SOL/USD'];
 
   return (
     <Card className="shadow-lg col-span-1 md:col-span-2">
@@ -148,7 +150,7 @@ export function TradingChart({ instrument, onInstrumentChange }: TradingChartPro
       </CardHeader>
       <CardContent>
         <Tabs value={instrument} onValueChange={(value) => onInstrumentChange(value as TradingInstrument)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 mb-4">
             {instruments.map((inst) => (
               <TabsTrigger key={inst} value={inst}>{inst}</TabsTrigger>
             ))}
