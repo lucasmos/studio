@@ -167,3 +167,23 @@ export interface MT5AccountSummary {
     freeMargin: number;
     marginLevelPercentage: number;
 }
+
+// Trade History Record
+export type TradeCategory = 'forexCrypto' | 'volatility' | 'mt5';
+export type TradeRecordStatus = 'won' | 'lost_duration' | 'lost_stoploss' | 'closed_manual' | 'cancelled'; // Add more specific statuses as needed
+
+export interface TradeRecord {
+  id: string;
+  timestamp: number; // Store as number (Date.now()) for easier sorting
+  instrument: TradingInstrument;
+  action: 'CALL' | 'PUT' | MT5TradeDirection; // Accommodate binary and MT5
+  duration?: TradeDuration | string; // Duration string for binary, or descriptive for MT5 (e.g., holding period)
+  stake: number; // Or investment for MT5
+  entryPrice: number;
+  exitPrice?: number | null; // Price at trade conclusion
+  pnl: number; // Profit or Loss
+  status: TradeRecordStatus;
+  accountType: PaperTradingMode; // 'paper' or 'live'
+  tradeCategory: TradeCategory;
+  reasoning?: string; // Optional AI reasoning or manual note
+}

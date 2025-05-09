@@ -6,7 +6,7 @@ import { BalanceDisplay } from '@/components/dashboard/balance-display';
 import { TradingChart } from '@/components/dashboard/trading-chart';
 import { TradeControls } from '@/components/dashboard/trade-controls';
 import { AiRecommendationCard } from '@/components/dashboard/ai-recommendation-card';
-import type { TradingInstrument, TradingMode, TradeDuration, AiRecommendation, PaperTradingMode, ActiveAutomatedTrade, ProfitsClaimable, PriceTick, ForexCryptoCommodityInstrumentType } from '@/types';
+import type { TradingInstrument, TradingMode, TradeDuration, AiRecommendation, PaperTradingMode, ActiveAutomatedTrade, ProfitsClaimable, PriceTick, ForexCryptoCommodityInstrumentType, TradeRecord } from '@/types';
 import { analyzeMarketSentiment } from '@/ai/flows/analyze-market-sentiment';
 import { explainAiReasoning } from '@/ai/flows/explain-ai-reasoning';
 import { generateAutomatedTradingStrategy } from '@/ai/flows/automated-trading-strategy-flow.ts';
@@ -18,6 +18,8 @@ import { getTicks } from '@/services/deriv';
 import { v4 as uuidv4 } from 'uuid'; 
 import { getInstrumentDecimalPlaces } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth-context';
+import { addTradeToHistory } from '@/lib/trade-history-utils';
+
 
 const FOREX_CRYPTO_COMMODITY_INSTRUMENTS: ForexCryptoCommodityInstrumentType[] = ['EUR/USD', 'GBP/USD', 'BTC/USD', 'XAU/USD', 'ETH/USD'];
 
@@ -25,6 +27,7 @@ const FOREX_CRYPTO_COMMODITY_INSTRUMENTS: ForexCryptoCommodityInstrumentType[] =
 export default function DashboardPage() {
   const { 
     authStatus, 
+    userInfo,
     paperBalance, 
     setPaperBalance, 
     liveBalance, 
@@ -83,7 +86,6 @@ export default function DashboardPage() {
     if (FOREX_CRYPTO_COMMODITY_INSTRUMENTS.includes(instrument as ForexCryptoCommodityInstrumentType)) {
         setCurrentInstrument(instrument as ForexCryptoCommodityInstrumentType);
     } else {
-        // If a non-forex/crypto instrument is somehow passed, default to the first one
         setCurrentInstrument(FOREX_CRYPTO_COMMODITY_INSTRUMENTS[0]);
         toast({
             title: "Instrument Switch",
@@ -110,24 +112,47 @@ export default function DashboardPage() {
         return;
     }
 
-
-    // Simulate getting entry price for manual trade
     getTicks(currentInstrument).then(ticks => {
       if (ticks.length === 0) {
         toast({ title: "Price Error", description: `Could not fetch entry price for ${currentInstrument}. Trade not placed.`, variant: "destructive" });
         return;
       }
       const entryPrice = ticks[ticks.length - 1].price;
+      const decimals = getInstrumentDecimalPlaces(currentInstrument);
+      const priceChange = entryPrice * 0.001; // Small simulated price movement
+      
       console.log(`Executing ${action} trade for ${currentInstrument} with duration ${tradeDuration} and stake ${stakeAmount} in ${tradingMode} mode. Account: ${paperTradingMode}. Entry: ${entryPrice}`);
       
       const potentialProfit = stakeAmount * 0.85; 
 
-      // Simulate trade outcome
       setTimeout(() => {
         const outcome = Math.random() > 0.4 ? "won" : "lost"; 
         const pnl = outcome === "won" ? potentialProfit : -stakeAmount;
+        let exitPrice: number;
+
+        if (action === 'CALL') {
+          exitPrice = outcome === "won" ? entryPrice + priceChange : entryPrice - priceChange;
+        } else { // PUT
+          exitPrice = outcome === "won" ? entryPrice - priceChange : entryPrice + priceChange;
+        }
+        exitPrice = parseFloat(exitPrice.toFixed(decimals));
         
-        // Defer state updates
+        const tradeRecord: TradeRecord = {
+          id: uuidv4(),
+          timestamp: Date.now(),
+          instrument: currentInstrument,
+          action: action,
+          duration: tradeDuration,
+          stake: stakeAmount,
+          entryPrice: entryPrice,
+          exitPrice: exitPrice,
+          pnl: pnl,
+          status: outcome === "won" ? "won" : "lost_duration",
+          accountType: paperTradingMode,
+          tradeCategory: 'forexCrypto',
+        };
+        addTradeToHistory(tradeRecord, userInfo);
+        
         setTimeout(() => {
           setCurrentBalance(prev => parseFloat((prev + pnl).toFixed(2)));
           toast({
@@ -212,7 +237,7 @@ export default function DashboardPage() {
     }
 
     setIsPreparingAutoTrades(true); 
-    setIsAutoTradingActive(true); // Set active early to change UI
+    setIsAutoTradingActive(true); 
     setActiveAutomatedTrades([]); 
     setProfitsClaimable({ totalNetProfit: 0, tradeCount: 0, winningTrades: 0, losingTrades: 0 });
 
@@ -240,7 +265,7 @@ export default function DashboardPage() {
       if (!strategyResult || strategyResult.tradesToExecute.length === 0) {
         const reason = strategyResult?.overallReasoning || "AI determined no optimal Forex/Crypto/Commodity trades at this moment.";
         toast({ title: "AI Auto-Trade Update", description: `AI analysis complete. ${reason}`, duration: 7000 });
-        setIsAutoTradingActive(false); // No trades, so session is not truly active
+        setIsAutoTradingActive(false); 
         return;
       }
       
@@ -285,7 +310,7 @@ export default function DashboardPage() {
 
       if (newTrades.length === 0) {
         toast({ title: "AI Auto-Trade Update", description: "No valid Forex/Crypto/Commodity trades could be initiated based on AI proposals and current conditions.", duration: 7000 });
-        setIsAutoTradingActive(false); // No trades initiated
+        setIsAutoTradingActive(false);
       }
       setActiveAutomatedTrades(newTrades);
 
@@ -296,7 +321,7 @@ export default function DashboardPage() {
     } finally {
       setIsPreparingAutoTrades(false); 
     }
-  }, [autoTradeTotalStake, tradingMode, toast, paperTradingMode, currentBalance, authStatus, setCurrentBalance, setProfitsClaimable]);
+  }, [autoTradeTotalStake, tradingMode, toast, paperTradingMode, currentBalance, authStatus, setCurrentBalance, setProfitsClaimable, userInfo]);
 
 
   const handleStopAiAutoTrade = () => {
@@ -308,6 +333,24 @@ export default function DashboardPage() {
       prevTrades.map(trade => {
         if (trade.status === 'active') {
           const pnl = -trade.stake; 
+          
+          const tradeRecord: TradeRecord = {
+            id: trade.id,
+            timestamp: Date.now(),
+            instrument: trade.instrument,
+            action: trade.action,
+            duration: `${trade.durationSeconds}s`,
+            stake: trade.stake,
+            entryPrice: trade.entryPrice,
+            exitPrice: trade.currentPrice, // Current price at time of stopping
+            pnl: pnl,
+            status: 'closed_manual', 
+            accountType: paperTradingMode,
+            tradeCategory: 'forexCrypto',
+            reasoning: (trade.reasoning || "") + " Manually stopped.",
+          };
+          addTradeToHistory(tradeRecord, userInfo);
+
           setTimeout(() => {
             setCurrentBalance(prevBal => parseFloat((prevBal + pnl).toFixed(2)));
             setProfitsClaimable(prevProfits => ({
@@ -326,12 +369,9 @@ export default function DashboardPage() {
   };
   
   useEffect(() => {
-    // If auto trading was active, but now no trades are active AND preparation is done, turn off active flag
     if (isAutoTradingActive && activeAutomatedTrades.every(t => t.status !== 'active') && !isPreparingAutoTrades) {
         setIsAutoTradingActive(false);
-        // Toast for session completion could be added here if desired
     }
-
 
     if (!isAutoTradingActive || activeAutomatedTrades.length === 0) { 
       tradeIntervals.current.forEach(intervalId => clearInterval(intervalId));
@@ -375,6 +415,23 @@ export default function DashboardPage() {
                 clearInterval(tradeIntervals.current.get(trade.id)!);
                 tradeIntervals.current.delete(trade.id);
                 
+                const tradeRecord: TradeRecord = {
+                  id: currentTrade.id,
+                  timestamp: Date.now(),
+                  instrument: currentTrade.instrument,
+                  action: currentTrade.action,
+                  duration: `${currentTrade.durationSeconds}s`,
+                  stake: currentTrade.stake,
+                  entryPrice: currentTrade.entryPrice,
+                  exitPrice: newCurrentPrice,
+                  pnl: pnl,
+                  status: newStatus,
+                  accountType: paperTradingMode,
+                  tradeCategory: 'forexCrypto',
+                  reasoning: currentTrade.reasoning,
+                };
+                addTradeToHistory(tradeRecord, userInfo);
+
                 setTimeout(() => { 
                   setCurrentBalance(prevBal => parseFloat((prevBal + pnl).toFixed(2)));
                   setProfitsClaimable(prevProfits => ({
@@ -396,12 +453,11 @@ export default function DashboardPage() {
               return { ...currentTrade, status: newStatus, pnl, currentPrice: newCurrentPrice };
             });
             
-            // Check if ALL trades across the board are concluded
             const allTradesNowConcluded = updatedTrades.every(t => t.status !== 'active');
 
             if (allTradesNowConcluded && isAutoTradingActive) { 
                  setTimeout(() => { 
-                    setIsAutoTradingActive(false); // This will now correctly reflect that the session has ended
+                    setIsAutoTradingActive(false); 
                     toast({ title: "AI Auto-Trading Session Complete", description: `All Forex/Crypto/Commodity trades for ${paperTradingMode} account concluded.`});
                 }, 100); 
             }
@@ -416,7 +472,7 @@ export default function DashboardPage() {
       tradeIntervals.current.forEach(intervalId => clearInterval(intervalId));
       tradeIntervals.current.clear();
     };
-  }, [activeAutomatedTrades, isAutoTradingActive, paperTradingMode, setCurrentBalance, setProfitsClaimable, toast, isPreparingAutoTrades]);
+  }, [activeAutomatedTrades, isAutoTradingActive, paperTradingMode, setCurrentBalance, setProfitsClaimable, toast, isPreparingAutoTrades, userInfo]);
 
 
   return (
@@ -512,9 +568,9 @@ export default function DashboardPage() {
             stakeAmount={stakeAmount}
             onStakeAmountChange={setStakeAmount}
             onExecuteTrade={handleExecuteTrade}
-            // onGetAiRecommendation={handleGetAiRecommendation} // Pass the handler
-            isFetchingManualRecommendation={isFetchingManualRecommendation} // Pass loading state for manual AI
-            isPreparingAutoTrades={isPreparingAutoTrades} // Pass loading state for auto AI
+            onGetAiRecommendation={handleGetAiRecommendation}
+            isFetchingManualRecommendation={isFetchingManualRecommendation} 
+            isPreparingAutoTrades={isPreparingAutoTrades} 
             autoTradeTotalStake={autoTradeTotalStake}
             onAutoTradeTotalStakeChange={setAutoTradeTotalStake}
             onStartAiAutoTrade={handleStartAiAutoTrade}
@@ -535,4 +591,3 @@ export default function DashboardPage() {
 if (typeof window !== 'undefined' && !(window as any).uuidv4) {
   (window as any).uuidv4 = uuidv4;
 }
-

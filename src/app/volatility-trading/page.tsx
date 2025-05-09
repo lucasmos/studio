@@ -3,8 +3,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { BalanceDisplay } from '@/components/dashboard/balance-display';
-import { TradingChart } from '@/components/dashboard/trading-chart'; // Import TradingChart
-import type { VolatilityInstrumentType, TradingMode, PaperTradingMode, ActiveAutomatedVolatilityTrade, ProfitsClaimable, PriceTick, TradingInstrument } from '@/types';
+import { TradingChart } from '@/components/dashboard/trading-chart'; 
+import type { VolatilityInstrumentType, TradingMode, PaperTradingMode, ActiveAutomatedVolatilityTrade, ProfitsClaimable, PriceTick, TradingInstrument, TradeRecord } from '@/types';
 import { generateVolatilityTradingStrategy } from '@/ai/flows/volatility-trading-strategy-flow';
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -19,6 +19,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { getInstrumentDecimalPlaces } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth-context';
 import { Bot, DollarSign, Play, Square, Briefcase, UserCheck, Activity } from 'lucide-react'; 
+import { addTradeToHistory } from '@/lib/trade-history-utils';
+
 
 const VOLATILITY_INSTRUMENTS: VolatilityInstrumentType[] = [
   'Volatility 10 Index',
@@ -31,6 +33,7 @@ const VOLATILITY_INSTRUMENTS: VolatilityInstrumentType[] = [
 export default function VolatilityTradingPage() {
   const { 
     authStatus, 
+    userInfo,
     paperBalance, 
     setPaperBalance, 
     liveBalance, 
@@ -192,7 +195,7 @@ export default function VolatilityTradingPage() {
     } finally {
       setIsAiLoading(false); 
     }
-  }, [autoTradeTotalStake, tradingMode, toast, paperTradingMode, currentBalance, authStatus, setCurrentBalance, setProfitsClaimable]);
+  }, [autoTradeTotalStake, tradingMode, toast, paperTradingMode, currentBalance, authStatus, setCurrentBalance, setProfitsClaimable, userInfo]);
 
   const handleStopAiAutoTrade = () => {
     setIsAutoTradingActive(false); 
@@ -203,6 +206,24 @@ export default function VolatilityTradingPage() {
       prevTrades.map(trade => {
         if (trade.status === 'active') {
           const pnl = -trade.stake; 
+
+          const tradeRecord: TradeRecord = {
+            id: trade.id,
+            timestamp: Date.now(),
+            instrument: trade.instrument,
+            action: trade.action,
+            duration: `${trade.durationSeconds}s`,
+            stake: trade.stake,
+            entryPrice: trade.entryPrice,
+            exitPrice: trade.currentPrice, 
+            pnl: pnl,
+            status: 'closed_manual',
+            accountType: paperTradingMode,
+            tradeCategory: 'volatility',
+            reasoning: (trade.reasoning || "") + " Manually stopped.",
+          };
+          addTradeToHistory(tradeRecord, userInfo);
+
           setTimeout(() => {
             setCurrentBalance(prevBal => parseFloat((prevBal + pnl).toFixed(2)));
             setProfitsClaimable(prevProfits => ({
@@ -267,6 +288,23 @@ export default function VolatilityTradingPage() {
                 clearInterval(tradeIntervals.current.get(trade.id)!);
                 tradeIntervals.current.delete(trade.id);
                 
+                const tradeRecord: TradeRecord = {
+                  id: currentTrade.id,
+                  timestamp: Date.now(),
+                  instrument: currentTrade.instrument,
+                  action: currentTrade.action,
+                  duration: `${currentTrade.durationSeconds}s`,
+                  stake: currentTrade.stake,
+                  entryPrice: currentTrade.entryPrice,
+                  exitPrice: newCurrentPrice,
+                  pnl: pnl,
+                  status: newStatus,
+                  accountType: paperTradingMode,
+                  tradeCategory: 'volatility',
+                  reasoning: currentTrade.reasoning,
+                };
+                addTradeToHistory(tradeRecord, userInfo);
+
                 setTimeout(() => { 
                   setCurrentBalance(prevBal => parseFloat((prevBal + pnl).toFixed(2)));
                   setProfitsClaimable(prevProfits => ({
@@ -305,7 +343,7 @@ export default function VolatilityTradingPage() {
       tradeIntervals.current.forEach(intervalId => clearInterval(intervalId));
       tradeIntervals.current.clear();
     };
-  }, [activeAutomatedTrades, isAutoTradingActive, paperTradingMode, setCurrentBalance, setProfitsClaimable, toast, isAiLoading]);
+  }, [activeAutomatedTrades, isAutoTradingActive, paperTradingMode, setCurrentBalance, setProfitsClaimable, toast, isAiLoading, userInfo]);
 
 
   return (
@@ -388,13 +426,11 @@ export default function VolatilityTradingPage() {
         </div>
 
         <div className="md:col-span-2 space-y-6">
-            {/* Volatility Chart */}
              <TradingChart 
                 instrument={currentVolatilityInstrument}
                 onInstrumentChange={handleInstrumentChange}
                 instrumentsToShow={VOLATILITY_INSTRUMENTS}
              />
-            {/* Active Trades Table */}
             <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle>Active AI Volatility Trades ({paperTradingMode === 'live' ? 'Real - Simulated' : 'Demo'})</CardTitle>
