@@ -15,6 +15,13 @@ export function addTradeToHistory(tradeRecord: TradeRecord, userInfo: UserInfo |
     if (storedHistory) {
       history = JSON.parse(storedHistory);
     }
+    
+    // Optional: Prevent adding if ID already exists, though uuid should be unique
+    // if (history.some(trade => trade.id === tradeRecord.id)) {
+    //   console.warn(`Attempted to add trade with duplicate ID: ${tradeRecord.id}`);
+    //   return; 
+    // }
+
     history.push(tradeRecord);
     
     // Keep history sorted and trimmed
@@ -37,10 +44,15 @@ export function getTradeHistory(userInfo: UserInfo | null): TradeRecord[] {
     const storedHistory = localStorage.getItem(historyKey);
     if (storedHistory) {
       const parsedHistory: TradeRecord[] = JSON.parse(storedHistory);
-      return parsedHistory.sort((a, b) => b.timestamp - a.timestamp); // Ensure sorted newest first
+      // Ensure uniqueness by ID to prevent React key errors
+      // If multiple trades have the same ID (which shouldn't happen with UUIDs),
+      // Map constructor will keep the last one encountered.
+      const uniqueHistoryArray = Array.from(new Map(parsedHistory.map(trade => [trade.id, trade])).values());
+      return uniqueHistoryArray.sort((a, b) => b.timestamp - a.timestamp); // Ensure sorted newest first
     }
   } catch (error) {
     console.error("Failed to load trade history:", error);
   }
   return [];
 }
+
